@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetLab Maya 5B — Integrasi DNS & Email Server</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        lab: {
+                            bg: '#060b19',
+                            panel: '#0f172a',
+                            card: '#1e293b',
+                            accent: '#0ea5e9',
+                            cyan: '#06b6d4',
+                            emerald: '#10b981',
+                            amber: '#f59e0b',
+                            rose: '#f43f5e',
+                            purple: '#a855f7'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* Grid Pattern Background */
+        .bg-grid-pattern {
+            background-image: 
+                linear-gradient(to right, rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        /* Animations */
+        @keyframes pulseRing {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            70% { transform: scale(1.15); opacity: 0; }
+            100% { transform: scale(1.15); opacity: 0; }
+        }
+        .node-pulse {
+            animation: pulseRing 2s infinite;
+            transform-origin: center;
+        }
+
+        .tab-active {
+            background-color: rgba(14, 165, 233, 0.15);
+            color: #38bdf8;
+            border-bottom: 2px solid #38bdf8;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-sky-500/30 selection:text-sky-200">
+
+    <!-- ===================================================================== -->
+    <!-- TOP NAVBAR & MISSION STATUS                                           -->
+    <!-- ===================================================================== -->
+    <header class="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 shadow-lg">
+        <div class="max-w-[1440px] mx-auto px-4 sm:px-6">
+            <div class="flex flex-wrap items-center justify-between py-3 gap-3">
+                <!-- Brand -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h1 class="font-extrabold text-base sm:text-lg tracking-tight text-white">NetLab <span class="text-sky-400">Maya 5B</span></h1>
+                            <span class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30 rounded-full">SMK TKJ • ASJ</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Integrasi Sistem Jaringan: <span class="text-slate-200 font-medium">DNS Server (BIND9) &amp; Email Server (Postfix + Dovecot)</span></p>
+                    </div>
+                </div>
+
+                <!-- Right Controls: Mission Progress & GitHub Guide Modal -->
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                    <button onclick="openModal('missionModal')" class="flex items-center space-x-2 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Misi Praktikum (<span id="headerMissionCount">0/4</span>)</span>
+                    </button>
+
+                    <button onclick="openModal('githubModal')" class="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition" title="Panduan Deploy ke GitHub Pages">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"></path></svg>
+                        <span class="hidden md:inline">GitHub Pages</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===================================================================== -->
+    <!-- MAIN WORKSPACE GRID                                                   -->
+    <!-- ===================================================================== -->
+    <main class="flex-grow max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-5 space-y-5">
+
+        <!-- ROW 1: INTERACTIVE TOPOLOGY & REAL-TIME SIMULATION CANVAS -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+            <!-- Simulation Toolbar -->
+            <div class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-sky-400 mr-1 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
+                        Simulasi Topologi:
+                    </span>
+                    <button onclick="runDnsLookupSim()" id="btnSimDns" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 transition flex items-center space-x-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <span>1. Uji Resolusi DNS (A &amp; MX)</span>
+                    </button>
+                    <button onclick="runFullEmailSim()" id="btnSimEmail" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-600 text-white shadow-md shadow-sky-500/20 transition flex items-center space-x-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                        <span>2. Simulasi Kirim &amp; Terima Email (End-to-End)</span>
+                    </button>
+                </div>
+
+                <!-- Speed, Step-by-step & Reset Controls -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1 text-xs">
+                        <span class="text-slate-400 mr-2">Kecepatan:</span>
+                        <select id="simSpeedSelect" class="bg-transparent text-sky-400 font-mono font-semibold focus:outline-none cursor-pointer">
+                            <option value="1.5" class="bg-slate-900">0.75x (Lambat)</option>
+                            <option value="1" selected class="bg-slate-900">1.0x (Normal)</option>
+                            <option value="0.5" class="bg-slate-900">2.0x (Cepat)</option>
+                        </select>
+                    </div>
+
+                    <label class="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs cursor-pointer select-none">
+                        <input type="checkbox" id="stepByStepToggle" class="accent-amber-500 rounded">
+                        <span class="text-slate-300 font-medium">Mode Step-by-Step</span>
+                    </label>
+
+                    <button id="btnNextStep" onclick="proceedNextStep()" class="hidden px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 animate-pulse transition">
+                        Lanjut Step →
+                    </button>
+
+                    <button onclick="resetSimulation()" class="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Reset Simulasi">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interactive SVG Topology Stage -->
+            <div class="relative bg-slate-950 bg-grid-pattern p-3 sm:p-5 overflow-x-auto">
+                <!-- Live Step Banner Overlay -->
+                <div id="simBanner" class="mb-3 px-4 py-2 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2">
+                        <span id="simBannerDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                        <span id="simBannerText" class="text-slate-300 font-medium">Siap menjalankan simulasi. Pilih mode simulasi di atas atau kirim email melalui tab <b>Webmail Client</b>.</span>
+                    </div>
+                    <span id="simStepCounter" class="mono text-[11px] text-slate-400">STEP 0/0</span>
+                </div>
+
+                <svg id="networkSvg" viewBox="0 0 1040 310" class="w-full min-w-[820px] h-auto select-none">
+                    <defs>
+                        <filter id="packetGlow" x="-30%" y="-30%" width="160%" height="160%">
+                            <feGaussianBlur stdDeviation="4" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                        <linearGradient id="cableGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.4" />
+                            <stop offset="50%" stop-color="#818cf8" stop-opacity="0.4" />
+                            <stop offset="100%" stop-color="#c084fc" stop-opacity="0.4" />
+                        </linearGradient>
+                    </defs>
+
+                    <!-- NETWORK ZONES -->
+                    <rect x="18" y="14" width="220" height="282" rx="16" fill="#0ea5e9" fill-opacity="0.04" stroke="#0ea5e9" stroke-opacity="0.2" stroke-dasharray="5,5" />
+                    <text x="32" y="36" fill="#38bdf8" font-size="11" font-weight="700">CLIENT PENGIRIM (LAN 1)</text>
+
+                    <rect x="265" y="14" width="510" height="282" rx="16" fill="#10b981" fill-opacity="0.04" stroke="#10b981" stroke-opacity="0.2" stroke-dasharray="5,5" />
+                    <text x="520" y="36" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">DATA CENTER / SERVER INFRASTRUCTURE (DMZ)</text>
+
+                    <rect x="802" y="14" width="220" height="282" rx="16" fill="#a855f7" fill-opacity="0.04" stroke="#a855f7" stroke-opacity="0.2" stroke-dasharray="5,5" />
+                    <text x="1008" y="36" fill="#c084fc" font-size="11" font-weight="700" text-anchor="end">CLIENT PENERIMA (LAN 2)</text>
+
+                    <!-- NETWORK LINKS / CABLES -->
+                    <!-- PC-A (128, 175) to Switch/Core Hub (520, 175) -->
+                    <line id="link-pca-hub" x1="128" y1="175" x2="520" y2="175" stroke="#334155" stroke-width="3" />
+                    <!-- Core Hub (520, 175) to DNS Server (375, 92) -->
+                    <line id="link-hub-dns" x1="520" y1="175" x2="375" y2="92" stroke="#334155" stroke-width="3" />
+                    <!-- Core Hub (520, 175) to Mail Server (665, 92) -->
+                    <line id="link-hub-mail" x1="520" y1="175" x2="665" y2="92" stroke="#334155" stroke-width="3" />
+                    <!-- Core Hub (520, 175) to PC-B (912, 175) -->
+                    <line id="link-hub-pcb" x1="520" y1="175" x2="912" y2="175" stroke="#334155" stroke-width="3" />
+
+                    <!-- Protocol Port Badges along Cables -->
+                    <g transform="translate(415, 118)">
+                        <rect x="-34" y="-10" width="68" height="20" rx="6" fill="#0f172a" stroke="#06b6d4" stroke-width="1" />
+                        <text x="0" y="3" fill="#22d3ee" font-size="9.5" font-family="JetBrains Mono" text-anchor="middle">UDP/53 DNS</text>
+                    </g>
+                    <g transform="translate(625, 118)">
+                        <rect x="-44" y="-10" width="88" height="20" rx="6" fill="#0f172a" stroke="#10b981" stroke-width="1" />
+                        <text id="svgMailPortLabel" x="0" y="3" fill="#34d399" font-size="9.5" font-family="JetBrains Mono" text-anchor="middle">SMTP:25 / IMAP</text>
+                    </g>
+
+                    <!-- CENTRAL CORE SWITCH / ROUTER NODE (520, 175) -->
+                    <g transform="translate(520, 175)">
+                        <circle cx="0" cy="0" r="24" fill="#0f172a" stroke="#64748b" stroke-width="2" />
+                        <path d="M-10 -5 L10 -5 M5 -9 L10 -5 L5 -1 M10 5 L-10 5 M-5 1 L-10 5 L-5 9" stroke="#94a3b8" stroke-width="1.8" fill="none" />
+                        <text x="0" y="38" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="middle">Core Router / Switch</text>
+                        <text x="0" y="50" fill="#64748b" font-size="9" font-family="JetBrains Mono" text-anchor="middle">192.168.1.1</text>
+                    </g>
+
+                    <!-- NODE 1: PC-A (SENDER) at (128, 175) -->
+                    <g transform="translate(128, 175)" class="cursor-pointer" onclick="switchBottomTab('webmail')">
+                        <rect x="-38" y="-36" width="76" height="72" rx="14" fill="#0f172a" stroke="#38bdf8" stroke-width="2.2" />
+                        <!-- Monitor Icon -->
+                        <rect x="-20" y="-22" width="40" height="27" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5" />
+                        <path d="M-10 12 L10 12 M0 5 L0 12" stroke="#38bdf8" stroke-width="2" />
+                        <circle cx="24" cy="-24" r="4" fill="#10b981" />
+                        <text x="0" y="52" fill="#f8fafc" font-size="12" font-weight="700" text-anchor="middle">PC-A (Pengirim)</text>
+                        <text id="svgPcaIp" x="0" y="66" fill="#38bdf8" font-size="10" font-family="JetBrains Mono" text-anchor="middle">192.168.1.10</text>
+                        <text id="svgPcaUser" x="0" y="79" fill="#94a3b8" font-size="9.5" font-family="JetBrains Mono" text-anchor="middle">siswa@sekolah.sch.id</text>
+                    </g>
+
+                    <!-- NODE 2: DNS SERVER (BIND9) at (375, 92) -->
+                    <g transform="translate(375, 92)" class="cursor-pointer" onclick="switchBottomTab('dns')">
+                        <rect x="-42" y="-34" width="84" height="68" rx="14" fill="#0f172a" stroke="#06b6d4" stroke-width="2.2" />
+                        <!-- Server Rack Icon -->
+                        <rect x="-22" y="-20" width="44" height="12" rx="2" fill="#1e293b" stroke="#22d3ee" stroke-width="1.3" />
+                        <circle cx="-15" cy="-14" r="2" fill="#22d3ee" />
+                        <rect x="-22" y="-4" width="44" height="12" rx="2" fill="#1e293b" stroke="#22d3ee" stroke-width="1.3" />
+                        <circle cx="-15" cy="2" r="2" fill="#22d3ee" />
+                        <!-- Status LED -->
+                        <circle id="ledDns" cx="28" cy="-22" r="5" fill="#10b981" />
+                        <text x="0" y="48" fill="#f8fafc" font-size="11.5" font-weight="700" text-anchor="middle">DNS Server (BIND9)</text>
+                        <text id="svgDnsIp" x="0" y="61" fill="#22d3ee" font-size="10" font-family="JetBrains Mono" text-anchor="middle">192.168.1.2</text>
+                    </g>
+
+                    <!-- NODE 3: MAIL SERVER (POSTFIX + DOVECOT) at (665, 92) -->
+                    <g transform="translate(665, 92)" class="cursor-pointer" onclick="switchBottomTab('mail')">
+                        <rect x="-42" y="-34" width="84" height="68" rx="14" fill="#0f172a" stroke="#10b981" stroke-width="2.2" />
+                        <!-- Mail Server Icon -->
+                        <rect x="-22" y="-18" width="44" height="28" rx="4" fill="#1e293b" stroke="#34d399" stroke-width="1.5" />
+                        <path d="M-20 -16 L0 -2 L20 -16" stroke="#34d399" stroke-width="1.6" fill="none" />
+                        <!-- Status LED -->
+                        <circle id="ledMail" cx="28" cy="-22" r="5" fill="#10b981" />
+                        <text x="0" y="48" fill="#f8fafc" font-size="11.5" font-weight="700" text-anchor="middle">Mail Server (Postfix)</text>
+                        <text id="svgMailIp" x="0" y="61" fill="#34d399" font-size="10" font-family="JetBrains Mono" text-anchor="middle">192.168.1.3</text>
+                    </g>
+
+                    <!-- NODE 4: PC-B (RECEIVER) at (912, 175) -->
+                    <g transform="translate(912, 175)" class="cursor-pointer" onclick="switchBottomTab('webmail')">
+                        <rect x="-38" y="-36" width="76" height="72" rx="14" fill="#0f172a" stroke="#c084fc" stroke-width="2.2" />
+                        <rect x="-20" y="-22" width="40" height="27" rx="4" fill="#1e293b" stroke="#c084fc" stroke-width="1.5" />
+                        <path d="M-10 12 L10 12 M0 5 L0 12" stroke="#c084fc" stroke-width="2" />
+                        <circle cx="24" cy="-24" r="4" fill="#10b981" />
+                        <!-- Unread Badge on PC-B -->
+                        <g id="svgUnreadBadge" transform="translate(32, -32)">
+                            <circle cx="0" cy="0" r="10" fill="#f43f5e" />
+                            <text id="svgUnreadCount" x="0" y="3.5" fill="#ffffff" font-size="10" font-weight="700" text-anchor="middle">1</text>
+                        </g>
+                        <text x="0" y="52" fill="#f8fafc" font-size="12" font-weight="700" text-anchor="middle">PC-B (Penerima)</text>
+                        <text id="svgPcbIp" x="0" y="66" fill="#c084fc" font-size="10" font-family="JetBrains Mono" text-anchor="middle">192.168.1.20</text>
+                        <text id="svgPcbUser" x="0" y="79" fill="#94a3b8" font-size="9.5" font-family="JetBrains Mono" text-anchor="middle">guru@sekolah.sch.id</text>
+                    </g>
+
+                    <!-- MOVING PACKET SPRITE -->
+                    <g id="movingPacket" transform="translate(128, 175)" style="display: none;">
+                        <rect x="-34" y="-15" width="68" height="30" rx="8" fill="#0ea5e9" stroke="#ffffff" stroke-width="2" filter="url(#packetGlow)" />
+                        <text id="movingPacketLabel" x="0" y="4" fill="#ffffff" font-size="10" font-weight="700" font-family="JetBrains Mono" text-anchor="middle">DNS QRY</text>
+                    </g>
+                </svg>
+            </div>
+        </section>
+
+        <!-- ROW 2: WORKSPACE TABS (LEFT 7 COLS) & REAL-TIME PROTOCOL INSPECTOR + FAULT INJECTION (RIGHT 5 COLS) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+            <!-- LEFT PANEL: INTERACTIVE CONFIGURATION & WEBMAIL SIMULATOR (7 Cols) -->
+            <section class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col overflow-hidden">
+                <!-- Tab Navigation -->
+                <div class="flex overflow-x-auto border-b border-slate-800 bg-slate-900/95 no-scrollbar">
+                    <button onclick="switchBottomTab('webmail')" id="btab-webmail" class="btab-btn tab-active px-4 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap flex items-center space-x-2 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        <span>Webmail Client (Compose &amp; Inbox)</span>
+                    </button>
+                    <button onclick="switchBottomTab('dns')" id="btab-dns" class="btab-btn px-4 py-3 text-xs sm:text-sm font-semibold text-slate-400 hover:text-white whitespace-nowrap flex items-center space-x-2 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path></svg>
+                        <span>DNS Server (BIND9)</span>
+                    </button>
+                    <button onclick="switchBottomTab('mail')" id="btab-mail" class="btab-btn px-4 py-3 text-xs sm:text-sm font-semibold text-slate-400 hover:text-white whitespace-nowrap flex items-center space-x-2 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <span>Mail Server (Postfix/Dovecot)</span>
+                    </button>
+                    <button onclick="switchBottomTab('quiz')" id="btab-quiz" class="btab-btn px-4 py-3 text-xs sm:text-sm font-semibold text-slate-400 hover:text-white whitespace-nowrap flex items-center space-x-2 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                        <span>Kuis &amp; Evaluasi</span>
+                    </button>
+                </div>
+
+                <!-- TAB 1: WEBMAIL CLIENT SIMULATOR -->
+                <div id="bpanel-webmail" class="bpanel p-5 space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <!-- Compose Email (PC-A) -->
+                        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                                <span class="text-xs font-bold text-sky-400 uppercase tracking-wider">Tulis Email Baru (PC-A)</span>
+                                <span class="mono text-[10px] px-2 py-0.5 bg-sky-500/10 text-sky-300 rounded">Roundcube / Thunderbird</span>
+                            </div>
+
+                            <div class="space-y-2.5 text-xs">
+                                <div>
+                                    <label class="text-slate-400 block mb-1">Dari (Pengirim):</label>
+                                    <select id="mailFromSelect" onchange="syncClientLabels()" class="mono w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+                                        <!-- Populated dynamically from mail users -->
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-slate-400 block mb-1">Kepada (Alamat Tujuan):</label>
+                                    <input type="text" id="mailToInput" value="guru@sekolah.sch.id" placeholder="contoh: admin@sekolah.sch.id" class="mono w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+                                </div>
+                                <div>
+                                    <label class="text-slate-400 block mb-1">Subjek Email:</label>
+                                    <input type="text" id="mailSubjectInput" value="Laporan Praktikum Integrasi DNS & Mail Server" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+                                </div>
+                                <div>
+                                    <label class="text-slate-400 block mb-1">Isi Pesan:</label>
+                                    <textarea id="mailBodyInput" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">Halo Bapak/Ibu Guru, konfigurasi BIND9 MX Record dan Postfix SMTP pada server sekolah.sch.id telah berhasil diuji coba.</textarea>
+                                </div>
+                                <button onclick="runFullEmailSim()" class="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 text-white font-bold rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center justify-center space-x-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                                    <span>Kirim Email &amp; Lihat Alur Paket</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Inbox Receiver (PC-B) -->
+                        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+                                    <div>
+                                        <span class="text-xs font-bold text-purple-400 uppercase tracking-wider block">Kotak Masuk (Inbox PC-B)</span>
+                                        <span id="inboxOwnerLabel" class="mono text-[10px] text-slate-400">Akun: guru@sekolah.sch.id</span>
+                                    </div>
+                                    <button onclick="fetchInboxAnimation()" class="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-[11px] font-semibold transition">
+                                        Sync IMAP/POP3
+                                    </button>
+                                </div>
+
+                                <div id="inboxList" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+
+                            <div class="mt-3 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex justify-between">
+                                <span>Protokol Ambil: <strong id="inboxProtoLabel" class="text-purple-400 mono">IMAP (143)</strong></span>
+                                <span id="inboxCountText">1 Pesan</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: DNS SERVER CONFIGURATION (BIND9) -->
+                <div id="bpanel-dns" class="bpanel hidden p-5 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-cyan-400">Konfigurasi Zone File BIND9 (`/etc/bind/db.sekolah.sch.id`)</h3>
+                            <p class="text-xs text-slate-400">Edit record DNS secara langsung atau tambah record baru di bawah ini.</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="resetDefaultDnsZone()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition">Reset Default</button>
+                            <button onclick="applyDnsZoneConfig()" class="px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/20 transition">
+                                Apply &amp; Reload BIND9
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Terminal Editor -->
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+                        <div class="bg-slate-900 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] mono text-slate-400">
+                            <span>root@dns-server:/etc/bind# nano db.sekolah.sch.id</span>
+                            <span class="text-emerald-400">UTF-8 • BIND9 Zone</span>
+                        </div>
+                        <textarea id="bindZoneEditor" rows="10" spellcheck="false" class="mono w-full bg-slate-950 text-emerald-300 p-3.5 text-xs leading-relaxed focus:outline-none"></textarea>
+                    </div>
+
+                    <!-- Validation Status & DNS Cache Viewer -->
+                    <div id="dnsValidationAlert" class="hidden p-3 rounded-xl text-xs font-mono"></div>
+
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold text-slate-300">Parsed Active Resource Records &amp; Client DNS Cache</span>
+                            <button onclick="clearDnsCache()" class="text-[11px] text-amber-400 hover:underline">Flush DNS Cache</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left mono text-xs">
+                                <thead>
+                                    <tr class="text-slate-500 border-b border-slate-800">
+                                        <th class="py-1.5 px-2">Host / Domain</th>
+                                        <th class="py-1.5 px-2">Type</th>
+                                        <th class="py-1.5 px-2">Priority</th>
+                                        <th class="py-1.5 px-2">Value / Target IP</th>
+                                        <th class="py-1.5 px-2">Cache Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="parsedDnsTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: MAIL SERVER CONFIGURATION (POSTFIX & DOVECOT) -->
+                <div id="bpanel-mail" class="bpanel hidden p-5 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Postfix main.cf Settings -->
+                        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <span class="text-xs font-bold text-emerald-400 uppercase">Postfix (`/etc/postfix/main.cf`)</span>
+                                <span class="mono text-[10px] text-slate-400">MTA Config</span>
+                            </div>
+                            <div class="space-y-2.5 text-xs">
+                                <div>
+                                    <label class="text-slate-400 block mb-1">myhostname (FQDN Mail Server):</label>
+                                    <input type="text" id="postfixHostname" value="mail.sekolah.sch.id" class="mono w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-emerald-300 focus:outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="text-slate-400 block mb-1">mydomain (Domain Utama):</label>
+                                    <input type="text" id="postfixDomain" value="sekolah.sch.id" class="mono w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-emerald-300 focus:outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="text-slate-400 block mb-1">Protokol Pengambilan Email (Dovecot MDA):</label>
+                                    <select id="dovecotProtocol" onchange="updateMailServerConfig()" class="mono w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-purple-300 focus:outline-none focus:border-purple-500">
+                                        <option value="IMAP">IMAP (Port 143) — Sinkronisasi folder di server</option>
+                                        <option value="POP3">POP3 (Port 110) — Unduh ke lokal &amp; hapus di server</option>
+                                    </select>
+                                </div>
+                                <button onclick="updateMailServerConfig()" class="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition">
+                                    Simpan &amp; Restart Postfix/Dovecot
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Virtual User Mailbox Manager -->
+                        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
+                                    <span class="text-xs font-bold text-sky-400 uppercase">Daftar Akun Email (Maildir)</span>
+                                    <span class="mono text-[10px] text-slate-400">/home/*/Maildir</span>
+                                </div>
+
+                                <div id="mailUsersList" class="space-y-1.5 max-h-36 overflow-y-auto pr-1 text-xs mono">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+
+                            <div class="pt-2 border-t border-slate-800 space-y-2">
+                                <label class="text-[11px] text-slate-400 block">Tambah User Baru (`adduser`):</label>
+                                <div class="flex space-x-2">
+                                    <input type="text" id="newMailUsername" placeholder="namauser (mis: admin)" class="mono flex-grow bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500">
+                                    <button onclick="addMailUser()" class="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-lg text-xs transition">
+                                        + Buat
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: QUIZ & EVALUATION -->
+                <div id="bpanel-quiz" class="bpanel hidden p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-sky-400">Evaluasi Pemahaman Bab 5B: DNS &amp; Email Server</h3>
+                            <p class="text-xs text-slate-400">Jawab 5 soal berikut untuk menguji pemahaman integrasi layanan jaringan.</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span id="quizScoreText" class="mono text-xs font-bold px-3 py-1 rounded-lg bg-sky-500/15 text-sky-400">Skor: 0/5</span>
+                            <button onclick="resetQuiz()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Reset</button>
+                        </div>
+                    </div>
+                    <div id="quizListContainer" class="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                        <!-- Injected by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT PANEL: TROUBLESHOOTING INJECTION & PROTOCOL LOG INSPECTOR (5 Cols) -->
+            <section class="lg:col-span-5 flex flex-col space-y-5">
+
+                <!-- Fault / Troubleshooting Injection Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400">Simulasi Troubleshooting (Fault Injection)</h3>
+                        </div>
+                        <span class="text-[10px] text-slate-400">Uji Analisis Gangguan</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2.5 text-xs">
+                        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700">
+                            <div>
+                                <div class="font-semibold text-slate-200">Service BIND9</div>
+                                <div class="text-[10px] text-slate-500">Port 53 UDP/TCP</div>
+                            </div>
+                            <input type="checkbox" id="faultDnsRunning" checked onchange="updateServiceLeds()" class="accent-emerald-500 w-4 h-4">
+                        </label>
+
+                        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700">
+                            <div>
+                                <div class="font-semibold text-slate-200">Service Postfix/Dovecot</div>
+                                <div class="text-[10px] text-slate-500">MTA &amp; MDA Daemon</div>
+                            </div>
+                            <input type="checkbox" id="faultMailRunning" checked onchange="updateServiceLeds()" class="accent-emerald-500 w-4 h-4">
+                        </label>
+
+                        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700">
+                            <div>
+                                <div class="font-semibold text-slate-200">Firewall Port 25</div>
+                                <div class="text-[10px] text-slate-500">Izinkan Trafik SMTP</div>
+                            </div>
+                            <input type="checkbox" id="faultPort25Open" checked onchange="updateServiceLeds()" class="accent-emerald-500 w-4 h-4">
+                        </label>
+
+                        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700">
+                            <div>
+                                <div class="font-semibold text-slate-200">MX Record Aktif</div>
+                                <div class="text-[10px] text-slate-500">Rute Domain Mail</div>
+                            </div>
+                            <input type="checkbox" id="faultMxValid" checked onchange="toggleMxFault()" class="accent-emerald-500 w-4 h-4">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Real-time Packet & Protocol Log Inspector -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-grow flex flex-col">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 ml-1">Packet &amp; Protocol Inspector</h3>
+                        </div>
+                        <button onclick="clearProtocolLogs()" class="text-[11px] text-slate-400 hover:text-white mono">Clear Log</button>
+                    </div>
+
+                    <!-- Live Packet Header Dissector -->
+                    <div class="grid grid-cols-2 gap-2 mb-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800 mono text-[11px]">
+                        <div>
+                            <div class="text-slate-500 text-[10px]">TRANSPORT / PORT</div>
+                            <div id="inspTransport" class="text-cyan-400 font-semibold mt-0.5">-</div>
+                        </div>
+                        <div>
+                            <div class="text-slate-500 text-[10px]">SRC → DST IP</div>
+                            <div id="inspIps" class="text-sky-400 font-semibold mt-0.5">-</div>
+                        </div>
+                        <div class="col-span-2 pt-1 border-t border-slate-800/80">
+                            <div class="text-slate-500 text-[10px]">PAYLOAD / COMMAND</div>
+                            <div id="inspPayload" class="text-amber-300 truncate mt-0.5">Menunggu transmisi paket...</div>
+                        </div>
+                    </div>
+
+                    <!-- Scrolling Terminal Log -->
+                    <div id="protocolLogTerminal" class="mono text-[11.5px] bg-slate-950 border border-slate-800 rounded-xl p-3 h-64 overflow-y-auto space-y-2 text-slate-300">
+                        <div class="text-slate-500"># NetLab Packet Sniffer siap menangkap trafik DNS (53), SMTP (25), dan IMAP/POP3...</div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 1: MISI PRAKTIKUM INTERAKTIF                                    -->
+    <!-- ===================================================================== -->
+    <div id="missionModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2">
+                    <span class="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </span>
+                    <h2 class="font-bold text-base text-white">Daftar Misi Praktikum Bab 5B</h2>
+                </div>
+                <button onclick="closeModal('missionModal')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+            </div>
+
+            <p class="text-xs text-slate-400">Selesaikan seluruh misi berikut di dalam Lab Maya untuk memvalidasi kompetensi konfigurasi DNS dan Email Server:</p>
+
+            <div id="missionChecklistContainer" class="space-y-2.5 text-xs">
+                <!-- Populated by JS -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end">
+                <button onclick="closeModal('missionModal')" class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl text-xs transition">Tutup &amp; Lanjutkan Lab</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 2: PANDUAN DEPLOY KE GITHUB & GITHUB PAGES                      -->
+    <!-- ===================================================================== -->
+    <div id="githubModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 class="font-bold text-base text-white flex items-center space-x-2">
+                    <span>Panduan Publikasi ke GitHub &amp; GitHub Pages</span>
+                </h2>
+                <button onclick="closeModal('githubModal')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+                <p>Aplikasi Lab Maya ini dirancang dalam <strong>satu file HTML mandiri (<code class="text-sky-400">index.html</code>)</strong> sehingga dapat langsung di-hosting secara gratis menggunakan GitHub Pages:</p>
+                
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2 mono text-[11px]">
+                    <div class="text-slate-400"># 1. Inisialisasi repository lokal &amp; commit file index.html</div>
+                    <div class="text-emerald-400">git init</div>
+                    <div class="text-emerald-400">git add index.html</div>
+                    <div class="text-emerald-400">git commit -m "Deploy Virtual Lab Bab 5B DNS &amp; Email Server"</div>
+                    <div class="text-slate-400 mt-2"># 2. Hubungkan ke repository GitHub baru &amp; push</div>
+                    <div class="text-sky-400">git branch -M main</div>
+                    <div class="text-sky-400">git remote add origin https://github.com/USERNAME/lab-maya-dns-mail.git</div>
+                    <div class="text-sky-400">git push -u origin main</div>
+                </div>
+
+                <ol class="list-decimal list-inside space-y-1 text-slate-400">
+                    <li>Buka repository Anda di <strong>GitHub.com</strong> → masuk ke tab <strong>Settings</strong>.</li>
+                    <li>Pada menu sebelah kiri, pilih <strong>Pages</strong> (di bawah bagian <em>Code and automation</em>).</li>
+                    <li>Pada bagian <strong>Build and deployment → Branch</strong>, pilih <code class="text-white">main</code> dan folder <code class="text-white">/ (root)</code>, lalu klik <strong>Save</strong>.</li>
+                    <li>Tunggu ±1 menit, tautan situs Lab Maya Anda akan aktif di <code class="text-sky-400">https://USERNAME.github.io/lab-maya-dns-mail/</code>.</li>
+                </ol>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end">
+                <button onclick="closeModal('githubModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl text-xs transition">Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- JAVASCRIPT APPLICATION LOGIC                                          -->
+    <!-- ===================================================================== -->
+    <script>
+        /* ---------------------------------------------------------------------
+           1. GLOBAL STATE & DEFAULT DATA
+        --------------------------------------------------------------------- */
+        const defaultZoneText = `$TTL 86400
+@   IN  SOA ns1.sekolah.sch.id. admin.sekolah.sch.id. (
+        2026111301 ; Serial
+        3600       ; Refresh
+        1800       ; Retry
+        604800     ; Expire
+        86400 )    ; Negative Cache TTL
+
+; Name Server Record
+@       IN  NS      ns1.sekolah.sch.id.
+
+; A Records (Pemetaan Hostname ke IPv4)
+ns1     IN  A       192.168.1.2
+www     IN  A       192.168.1.100
+mail    IN  A       192.168.1.3
+
+; MX Record (Mail Exchanger untuk Domain Email)
+@       IN  MX  10  mail.sekolah.sch.id.`;
+
+        let state = {
+            domain: 'sekolah.sch.id',
+            mailHost: 'mail.sekolah.sch.id',
+            dnsIp: '192.168.1.2',
+            mailIp: '192.168.1.3',
+            pcaIp: '192.168.1.10',
+            pcbIp: '192.168.1.20',
+            protocol: 'IMAP', // IMAP or POP3
+            dnsRecords: [],
+            dnsCache: {},
+            users: ['siswa', 'guru', 'admin'],
+            inbox: [
+                {
+                    id: 1,
+                    from: 'admin@sekolah.sch.id',
+                    to: 'guru@sekolah.sch.id',
+                    subject: 'Selamat Datang di Server Email Sekolah',
+                    body: 'Layanan Postfix SMTP dan Dovecot IMAP telah aktif pada domain sekolah.sch.id.',
+                    time: '07:30 WIB',
+                    unread: true
+                }
+            ],
+            missions: {
+                m1_dns_test: false,
+                m2_add_user: false,
+                m3_send_admin: false,
+                m4_troubleshoot: false
+            },
+            isSimulating: false,
+            stepResolver: null
+        };
+
+        /* ---------------------------------------------------------------------
+           2. TAB & MODAL NAVIGATION
+        --------------------------------------------------------------------- */
+        function switchBottomTab(tabName) {
+            document.querySelectorAll('.bpanel').forEach(p => p.classList.add('hidden'));
+            document.getElementById('bpanel-' + tabName).classList.remove('hidden');
+
+            document.querySelectorAll('.btab-btn').forEach(b => {
+                b.classList.remove('tab-active');
+                b.classList.add('text-slate-400');
+            });
+            const activeTab = document.getElementById('btab-' + tabName);
+            activeTab.classList.add('tab-active');
+            activeTab.classList.remove('text-slate-400');
+        }
+
+        function openModal(id) {
+            if (id === 'missionModal') renderMissionChecklist();
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        /* ---------------------------------------------------------------------
+           3. DNS ZONE PARSER & MANAGEMENT
+        --------------------------------------------------------------------- */
+        function parseBindZone(zoneText) {
+            const lines = zoneText.split('\n');
+            const records = [];
+            const domain = state.domain;
+
+            lines.forEach(rawLine => {
+                // Remove comments
+                const line = rawLine.split(';')[0].trim();
+                if (!line || line.startsWith('$') || line.startsWith('(') || line.startsWith(')') || /^\d+/.test(line)) return;
+
+                const tokens = line.split(/\s+/);
+                // Look for IN A or IN MX
+                const inIdx = tokens.indexOf('IN');
+                if (inIdx !== -1 && tokens.length > inIdx + 2) {
+                    const hostRaw = tokens[0];
+                    const type = tokens[inIdx + 1].toUpperCase();
+                    const hostFqdn = hostRaw === '@' ? domain : (hostRaw.endsWith('.') ? hostRaw.slice(0, -1) : `${hostRaw}.${domain}`);
+
+                    if (type === 'A') {
+                        const ip = tokens[inIdx + 2];
+                        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+                            records.push({ host: hostFqdn, type: 'A', priority: '-', value: ip });
+                        }
+                    } else if (type === 'MX') {
+                        const prio = tokens[inIdx + 2];
+                        const targetRaw = tokens[inIdx + 3] || '';
+                        const targetFqdn = targetRaw.endsWith('.') ? targetRaw.slice(0, -1) : `${targetRaw}.${domain}`;
+                        if (targetFqdn) {
+                            records.push({ host: hostFqdn, type: 'MX', priority: prio, value: targetFqdn });
+                        }
+                    }
+                }
+            });
+            return records;
+        }
+
+        function applyDnsZoneConfig() {
+            const editorText = document.getElementById('bindZoneEditor').value;
+            const parsed = parseBindZone(editorText);
+            const alertBox = document.getElementById('dnsValidationAlert');
+
+            if (parsed.length === 0) {
+                alertBox.className = 'p-3 rounded-xl text-xs font-mono bg-rose-500/15 border border-rose-500/30 text-rose-400';
+                alertBox.textContent = '[BIND9 ERROR] Tidak ditemukan record A atau MX yang valid pada zone file!';
+                alertBox.classList.remove('hidden');
+                return;
+            }
+
+            state.dnsRecords = parsed;
+            state.dnsCache = {}; // Clear cache upon zone reload
+            
+            // Sync fault checkbox with MX presence
+            const hasMx = parsed.some(r => r.type === 'MX');
+            document.getElementById('faultMxValid').checked = hasMx;
+
+            alertBox.className = 'p-3 rounded-xl text-xs font-mono bg-emerald-500/15 border border-emerald-500/30 text-emerald-400';
+            alertBox.textContent = `[BIND9 OK] Zone ${state.domain} berhasil dimuat ulang (${parsed.length} active records).`;
+            alertBox.classList.remove('hidden');
+
+            renderDnsRecordsTable();
+            logProtocol('SYSTEM', `BIND9 named.service reloaded. Active records: ${parsed.length}`);
+        }
+
+        function resetDefaultDnsZone() {
+            document.getElementById('bindZoneEditor').value = defaultZoneText;
+            applyDnsZoneConfig();
+        }
+
+        function clearDnsCache() {
+            state.dnsCache = {};
+            renderDnsRecordsTable();
+            logProtocol('CLIENT', 'DNS Resolver Cache pada PC-A telah dibersihkan (ipconfig /flushdns).');
+        }
+
+        function renderDnsRecordsTable() {
+            const tbody = document.getElementById('parsedDnsTableBody');
+            tbody.innerHTML = state.dnsRecords.map(r => {
+                const cacheKey = `${r.type}:${r.host}`;
+                const isCached = Boolean(state.dnsCache[cacheKey]);
+                return `
+                    <tr>
+                        <td class="py-1.5 px-2 text-sky-300">${r.host}</td>
+                        <td class="py-1.5 px-2 font-bold ${r.type === 'MX' ? 'text-purple-400' : 'text-cyan-400'}">${r.type}</td>
+                        <td class="py-1.5 px-2">${r.priority}</td>
+                        <td class="py-1.5 px-2 text-emerald-300">${r.value}</td>
+                        <td class="py-1.5 px-2">
+                            ${isCached 
+                                ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px]">CACHED (TTL 86400)</span>' 
+                                : '<span class="text-slate-500 text-[10px]">Uncached</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleMxFault() {
+            const mxChecked = document.getElementById('faultMxValid').checked;
+            let text = document.getElementById('bindZoneEditor').value;
+            if (!mxChecked) {
+                // Comment out MX line
+                text = text.replace(/^(@\s+IN\s+MX\s+.*)$/gm, '; $1');
+            } else {
+                // Uncomment MX line
+                text = text.replace(/^;\s*(@\s+IN\s+MX\s+.*)$/gm, '$1');
+            }
+            document.getElementById('bindZoneEditor').value = text;
+            applyDnsZoneConfig();
+        }
+
+        /* ---------------------------------------------------------------------
+           4. MAIL SERVER & USER MAILBOX MANAGEMENT
+        --------------------------------------------------------------------- */
+        function updateMailServerConfig() {
+            const newHost = document.getElementById('postfixHostname').value.trim() || 'mail.sekolah.sch.id';
+            const newDomain = document.getElementById('postfixDomain').value.trim() || 'sekolah.sch.id';
+            const newProto = document.getElementById('dovecotProtocol').value;
+
+            state.mailHost = newHost;
+            state.domain = newDomain;
+            state.protocol = newProto;
+
+            // Update SVG Labels
+            const portText = newProto === 'IMAP' ? 'SMTP:25 | IMAP:143' : 'SMTP:25 | POP3:110';
+            document.getElementById('svgMailPortLabel').textContent = portText;
+            document.getElementById('inboxProtoLabel').textContent = newProto === 'IMAP' ? 'IMAP (143)' : 'POP3 (110)';
+
+            renderMailUsers();
+            logProtocol('SYSTEM', `Postfix (myhostname=${newHost}) & Dovecot (${newProto}) berhasil di-restart.`);
+        }
+
+        function addMailUser() {
+            const input = document.getElementById('newMailUsername');
+            const raw = input.value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+            if (!raw) return;
+            if (!state.users.includes(raw)) {
+                state.users.push(raw);
+                renderMailUsers();
+                logProtocol('SYSTEM', `Akun mailbox baru dibuat: ${raw}@${state.domain}`);
+                
+                // Mission 2 check: Create user 'operator' or any new user
+                if (state.users.length >= 4) {
+                    completeMission('m2_add_user');
+                }
+            }
+            input.value = '';
+        }
+
+        function renderMailUsers() {
+            const listEl = document.getElementById('mailUsersList');
+            const fromSelect = document.getElementById('mailFromSelect');
+            const prevFrom = fromSelect.value;
+
+            listEl.innerHTML = state.users.map(u => `
+                <div class="flex items-center justify-between bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                    <span class="text-emerald-300">${u}@${state.domain}</span>
+                    <span class="text-[10px] text-slate-500">Active</span>
+                </div>
+            `).join('');
+
+            fromSelect.innerHTML = state.users.map(u => {
+                const email = `${u}@${state.domain}`;
+                return `<option value="${email}">${email}</option>`;
+            }).join('');
+
+            if (prevFrom && state.users.some(u => `${u}@${state.domain}` === prevFrom)) {
+                fromSelect.value = prevFrom;
+            }
+            syncClientLabels();
+        }
+
+        function syncClientLabels() {
+            const sender = document.getElementById('mailFromSelect').value;
+            document.getElementById('svgPcaUser').textContent = sender;
+        }
+
+        function renderInbox() {
+            const listEl = document.getElementById('inboxList');
+            const unreadCount = state.inbox.filter(m => m.unread).length;
+
+            document.getElementById('inboxCountText').textContent = `${state.inbox.length} Pesan (${unreadCount} Baru)`;
+            const badge = document.getElementById('svgUnreadBadge');
+            if (unreadCount > 0) {
+                badge.style.display = 'block';
+                document.getElementById('svgUnreadCount').textContent = unreadCount;
+            } else {
+                badge.style.display = 'none';
+            }
+
+            if (state.inbox.length === 0) {
+                listEl.innerHTML = `<div class="text-xs text-slate-500 italic text-center py-8">Kotak masuk kosong (Terunduh via POP3).</div>`;
+                return;
+            }
+
+            listEl.innerHTML = state.inbox.slice().reverse().map(msg => `
+                <div onclick="readEmail(${msg.id})" class="p-2.5 rounded-xl border cursor-pointer transition ${msg.unread ? 'bg-purple-500/10 border-purple-500/40' : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'}">
+                    <div class="flex items-center justify-between text-[11px] mb-1">
+                        <span class="mono font-semibold ${msg.unread ? 'text-purple-300' : 'text-slate-300'}">${msg.from}</span>
+                        <span class="text-slate-500 text-[10px]">${msg.time}</span>
+                    </div>
+                    <div class="text-xs font-bold text-white truncate">${msg.subject}</div>
+                    <div class="text-[11px] text-slate-400 line-clamp-2 mt-0.5">${msg.body}</div>
+                    <div class="mt-1 text-[10px] text-slate-500 mono">To: ${msg.to}</div>
+                </div>
+            `).join('');
+        }
+
+        function readEmail(id) {
+            const msg = state.inbox.find(m => m.id === id);
+            if (msg && msg.unread) {
+                msg.unread = false;
+                renderInbox();
+            }
+        }
+
+        function updateServiceLeds() {
+            const dnsUp = document.getElementById('faultDnsRunning').checked;
+            const mailUp = document.getElementById('faultMailRunning').checked;
+            document.getElementById('ledDns').setAttribute('fill', dnsUp ? '#10b981' : '#f43f5e');
+            document.getElementById('ledMail').setAttribute('fill', mailUp ? '#10b981' : '#f43f5e');
+        }
+
+        /* ---------------------------------------------------------------------
+           5. PACKET ANIMATION ENGINE & PROTOCOL LOGGING
+        --------------------------------------------------------------------- */
+        const NODES = {
+            PCA:  { x: 128, y: 175 },
+            HUB:  { x: 520, y: 175 },
+            DNS:  { x: 375, y: 92  },
+            MAIL: { x: 665, y: 92  },
+            PCB:  { x: 912, y: 175 }
+        };
+
+        function logProtocol(proto, message, isError = false) {
+            const term = document.getElementById('protocolLogTerminal');
+            const now = new Date();
+            const ts = now.toTimeString().split(' ')[0];
+            
+            const colorMap = {
+                'DNS': 'text-cyan-400',
+                'SMTP': 'text-emerald-400',
+                'IMAP': 'text-purple-400',
+                'POP3': 'text-purple-400',
+                'ERROR': 'text-rose-400',
+                'SYSTEM': 'text-amber-400',
+                'CLIENT': 'text-sky-400'
+            };
+            const tagColor = isError ? 'text-rose-400' : (colorMap[proto] || 'text-slate-300');
+
+            const line = document.createElement('div');
+            line.className = `leading-relaxed ${isError ? 'bg-rose-500/10 border-l-2 border-rose-500 pl-2 py-0.5 rounded-r' : ''}`;
+            line.innerHTML = `<span class="text-slate-500">[${ts}]</span> <span class="font-bold ${tagColor}">[${proto}]</span> <span class="${isError ? 'text-rose-300' : 'text-slate-200'}">${message}</span>`;
+            term.appendChild(line);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function clearProtocolLogs() {
+            document.getElementById('protocolLogTerminal').innerHTML = '<div class="text-slate-500"># Log dibersihkan.</div>';
+        }
+
+        function setInspectorHeader(transport, ips, payload) {
+            document.getElementById('inspTransport').textContent = transport;
+            document.getElementById('inspIps').textContent = ips;
+            document.getElementById('inspPayload').textContent = payload;
+        }
+
+        function setSimBanner(status, text, stepStr = '') {
+            const dot = document.getElementById('simBannerDot');
+            const txt = document.getElementById('simBannerText');
+            const step = document.getElementById('simStepCounter');
+
+            const dotStyles = {
+                idle: 'bg-slate-500',
+                running: 'bg-sky-400 animate-ping',
+                success: 'bg-emerald-400',
+                error: 'bg-rose-500'
+            };
+            dot.className = `w-2.5 h-2.5 rounded-full ${dotStyles[status] || dotStyles.idle}`;
+            txt.innerHTML = text;
+            if (stepStr) step.textContent = stepStr;
+        }
+
+        async function waitStepIfEnabled() {
+            const isStepMode = document.getElementById('stepByStepToggle').checked;
+            if (!isStepMode) return;
+
+            const btn = document.getElementById('btnNextStep');
+            btn.classList.remove('hidden');
+            await new Promise(resolve => {
+                state.stepResolver = resolve;
+            });
+            btn.classList.add('hidden');
+        }
+
+        function proceedNextStep() {
+            if (state.stepResolver) {
+                const res = state.stepResolver;
+                state.stepResolver = null;
+                res();
+            }
+        }
+
+        function animateSegment(fromNode, toNode, label, color) {
+            return new Promise(resolve => {
+                const pkt = document.getElementById('movingPacket');
+                const rect = pkt.querySelector('rect');
+                const txt = document.getElementById('movingPacketLabel');
+                const speedMult = parseFloat(document.getElementById('simSpeedSelect').value) || 1;
+                const duration = 700 * speedMult;
+
+                pkt.style.display = 'block';
+                rect.setAttribute('fill', color);
+                txt.textContent = label;
+
+                const start = performance.now();
+                function frame(now) {
+                    if (!state.isSimulating) {
+                        pkt.style.display = 'none';
+                        resolve();
+                        return;
+                    }
+                    const t = Math.min(1, (now - start) / duration);
+                    const x = fromNode.x + (toNode.x - fromNode.x) * t;
+                    const y = fromNode.y + (toNode.y - fromNode.y) * t;
+                    pkt.setAttribute('transform', `translate(${x}, ${y})`);
+                    if (t < 1) {
+                        requestAnimationFrame(frame);
+                    } else {
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(frame);
+            });
+        }
+
+        async function animatePath(waypoints, label, color) {
+            for (let i = 0; i < waypoints.length - 1; i++) {
+                if (!state.isSimulating) break;
+                await animateSegment(waypoints[i], waypoints[i + 1], label, color);
+            }
+        }
+
+        function resetSimulation() {
+            state.isSimulating = false;
+            if (state.stepResolver) proceedNextStep();
+            document.getElementById('movingPacket').style.display = 'none';
+            document.getElementById('btnNextStep').classList.add('hidden');
+            setSimBanner('idle', 'Simulasi di-reset. Siap menjalankan pengujian baru.', 'STEP 0/0');
+            setInspectorHeader('-', '-', 'Menunggu transmisi paket...');
+        }
+
+        /* ---------------------------------------------------------------------
+           6. SIMULATION SCENARIO 1: DNS RESOLUTION (A & MX RECORD)
+        --------------------------------------------------------------------- */
+        async function runDnsLookupSim() {
+            if (state.isSimulating) resetSimulation();
+            state.isSimulating = true;
+
+            const dnsRunning = document.getElementById('faultDnsRunning').checked;
+            const domain = state.domain;
+
+            setSimBanner('running', `PC-A mengirim <b>DNS Standard Query (MX &amp; A)</b> untuk domain <code class="text-cyan-300">${domain}</code>...`, 'STEP 1/2');
+            setInspectorHeader('UDP Port 53 (DNS)', `${state.pcaIp} → ${state.dnsIp}`, `Standard query 0x1a2b MX ${domain}`);
+            logProtocol('DNS', `PC-A (${state.pcaIp}) mengirim query MX & A untuk domain <b>${domain}</b> ke DNS Server (${state.dnsIp})...`);
+
+            await animatePath([NODES.PCA, NODES.HUB, NODES.DNS], 'DNS QRY', '#06b6d4');
+            await waitStepIfEnabled();
+
+            if (!dnsRunning) {
+                setSimBanner('error', `GAGAL: DNS Server (${state.dnsIp}) tidak merespons (Service BIND9 Stopped / Port 53 Unreachable)!`, 'ERROR');
+                logProtocol('ERROR', `ICMP Port Unreachable / DNS Query Timed Out! Layanan BIND9 pada ${state.dnsIp} mati.`, true);
+                document.getElementById('movingPacket').style.display = 'none';
+                state.isSimulating = false;
+                completeMission('m4_troubleshoot');
+                return;
+            }
+
+            // Lookup MX & A records
+            const mxRec = state.dnsRecords.find(r => r.type === 'MX' && r.host === domain);
+            const mailTarget = mxRec ? mxRec.value : state.mailHost;
+            const aRec = state.dnsRecords.find(r => r.type === 'A' && r.host === mailTarget);
+
+            if (!mxRec || !aRec) {
+                setSimBanner('error', `NXDOMAIN / No MX Record ditemukan untuk ${domain}! Periksa konfigurasi BIND9.`, 'STEP 2/2');
+                setInspectorHeader('UDP Port 53 (DNS)', `${state.dnsIp} → ${state.pcaIp}`, `DNS Response: No MX/A Record found`);
+                await animatePath([NODES.DNS, NODES.HUB, NODES.PCA], 'NO MX', '#f43f5e');
+                logProtocol('ERROR', `DNS Server merespons: Record MX atau A untuk ${domain} tidak ditemukan di zone file!`, true);
+                document.getElementById('movingPacket').style.display = 'none';
+                state.isSimulating = false;
+                completeMission('m4_troubleshoot');
+                return;
+            }
+
+            // Cache records
+            state.dnsCache[`MX:${domain}`] = mxRec.value;
+            state.dnsCache[`A:${mailTarget}`] = aRec.value;
+            renderDnsRecordsTable();
+
+            setSimBanner('running', `DNS Server membalas: <b>MX 10 ${mxRec.value}</b> → <b>A ${aRec.value}</b>`, 'STEP 2/2');
+            setInspectorHeader('UDP Port 53 (DNS)', `${state.dnsIp} → ${state.pcaIp}`, `Response: MX ${mxRec.value} (${aRec.value})`);
+            logProtocol('DNS', `DNS Response diterima: MX Priority ${mxRec.priority} -> <b>${mxRec.value}</b> (IPv4: <b>${aRec.value}</b>). Disimpan ke DNS Cache.`);
+
+            await animatePath([NODES.DNS, NODES.HUB, NODES.PCA], 'DNS ANS', '#10b981');
+            
+            document.getElementById('movingPacket').style.display = 'none';
+            setSimBanner('success', `Resolusi DNS Berhasil! Domain <b>${domain}</b> dipetakan ke Mail Server <b>${aRec.value}</b>.`, 'SELESAI');
+            state.isSimulating = false;
+            completeMission('m1_dns_test');
+        }
+
+        /* ---------------------------------------------------------------------
+           7. SIMULATION SCENARIO 2: END-TO-END EMAIL DELIVERY (DNS + SMTP + IMAP/POP3)
+        --------------------------------------------------------------------- */
+        async function runFullEmailSim() {
+            if (state.isSimulating) resetSimulation();
+            state.isSimulating = true;
+
+            const fromEmail = document.getElementById('mailFromSelect').value;
+            const toEmail = document.getElementById('mailToInput').value.trim();
+            const subject = document.getElementById('mailSubjectInput').value.trim() || '(Tanpa Subjek)';
+            const body = document.getElementById('mailBodyInput').value.trim();
+
+            if (!toEmail.includes('@')) {
+                setSimBanner('error', 'Format alamat email tujuan tidak valid!', 'ERROR');
+                state.isSimulating = false;
+                return;
+            }
+
+            const [targetUser, targetDomain] = toEmail.split('@');
+            const dnsRunning = document.getElementById('faultDnsRunning').checked;
+            const mailRunning = document.getElementById('faultMailRunning').checked;
+            const port25Open = document.getElementById('faultPort25Open').checked;
+
+            // --- STEP 1: DNS MX & A LOOKUP ---
+            setSimBanner('running', `Tahap 1: PC-A menanyakan <b>MX Record</b> domain <code class="text-cyan-300">${targetDomain}</code> ke DNS Server...`, 'STEP 1/5');
+            setInspectorHeader('UDP Port 53 (DNS)', `${state.pcaIp} → ${state.dnsIp}`, `Query MX & A for ${targetDomain}`);
+            logProtocol('DNS', `PC-A melakukan MX Lookup untuk domain penerima <b>${targetDomain}</b>...`);
+
+            await animatePath([NODES.PCA, NODES.HUB, NODES.DNS], 'MX QRY', '#06b6d4');
+            await waitStepIfEnabled();
+
+            if (!dnsRunning) {
+                setSimBanner('error', 'GAGAL TAHAP 1: DNS Server mati (BIND9 Stopped). Pengirim tidak mengetahui IP Mail Server!', 'ERROR');
+                logProtocol('ERROR', 'DNS Query gagal! Server DNS tidak merespons pada port 53.', true);
+                document.getElementById('movingPacket').style.display = 'none';
+                state.isSimulating = false;
+                completeMission('m4_troubleshoot');
+                return;
+            }
+
+            const mxRec = state.dnsRecords.find(r => r.type === 'MX' && r.host === targetDomain);
+            const aRec = mxRec ? state.dnsRecords.find(r => r.type === 'A' && r.host === mxRec.value) : null;
+
+            if (!mxRec || !aRec) {
+                setSimBanner('error', `GAGAL TAHAP 1: MX Record untuk domain <b>${targetDomain}</b> tidak ditemukan di DNS Server!`, 'ERROR');
+                await animatePath([NODES.DNS, NODES.HUB, NODES.PCA], 'ERR MX', '#f43f5e');
+                logProtocol('ERROR', `550 Host unknown: Tidak ada MX Record valid untuk ${targetDomain}. Periksa konfigurasi BIND9!`, true);
+                document.getElementById('movingPacket').style.display = 'none';
+                state.isSimulating = false;
+                completeMission('m4_troubleshoot');
+                return;
+            }
+
+            state.dnsCache[`MX:${targetDomain}`] = mxRec.value;
+            state.dnsCache[`A:${mxRec.value}`] = aRec.value;
+            renderDnsRecordsTable();
+
+            logProtocol('DNS', `DNS Server menjawab: MX -> <b>${mxRec.value}</b> (${aRec.value}).`);
+            await animatePath([NODES.DNS, NODES.HUB, NODES.PCA], 'MX ANS', '#06b6d4');
+            await waitStepIfEnabled();
+
+            // --- STEP 2: SMTP CONNECTION & HANDSHAKE (PORT 25) ---
+            setSimBanner('running', `Tahap 2: PC-A membuka sesi <b>SMTP (TCP Port 25)</b> ke Mail Server (${aRec.value})...`, 'STEP 2/5');
+            setInspectorHeader('TCP Port 25 (SMTP)', `${state.pcaIp} → ${aRec.value}`, `SYN -> 220 ${state.mailHost} ESMTP Postfix`);
+            logProtocol('SMTP', `Menghubungi MTA ${mxRec.value} (${aRec.value}) pada TCP Port 25...`);
+
+            await animatePath([NODES.PCA, NODES.HUB, NODES.MAIL], 'SMTP SYN', '#10b981');
+            await waitStepIfEnabled();
+
+            if (!port25Open || !mailRunning) {
+                const reason = !port25Open ? 'Firewall memblokir TCP Port 25 (Connection Refused/Filtered)' : 'Service Postfix SMTP sedang mati (Daemon Down)';
+                setSimBanner('error', `GAGAL TAHAP 2: ${reason}!`, 'ERROR');
+                logProtocol('ERROR', `SMTP Connection Failed ke ${aRec.value}:25 — ${reason}.`, true);
+                document.getElementById('movingPacket').style.display = 'none';
+                state.isSimulating = false;
+                completeMission('m4_troubleshoot');
+                return;
+            }
+
+            // --- STEP 3: SMTP ENVELOPE & DATA TRANSFER ---
+            setSimBanner('running', `Tahap 3: Transaksi perintah <b>EHLO → MAIL FROM → RCPT TO → DATA</b> ke Postfix...`, 'STEP 3/5');
+            setInspectorHeader('TCP Port 25 (ESMTP)', `${state.pcaIp} ↔ ${aRec.value}`, `MAIL FROM:<${fromEmail}> | RCPT TO:<${toEmail}>`);
+            logProtocol('SMTP', `220 ${state.mailHost} ESMTP Postfix`);
+            logProtocol('SMTP', `EHLO pc-a.${state.domain} | MAIL FROM:<${fromEmail}> -> 250 2.1.0 Ok`);
+            logProtocol('SMTP', `RCPT TO:<${toEmail}>`);
+
+            // Check if recipient user exists on Mail Server
+            if (!state.users.includes(targetUser) || targetDomain !== state.domain) {
+                setSimBanner('error', `GAGAL TAHAP 3: 550 5.1.1 User <b>${toEmail}</b> tidak terdaftar di Mail Server!`, 'ERROR');
+                await animatePath([NODES.MAIL, NODES.HUB, NODES.PCA], '550 ERR', '#f43f5e');
+                logProtocol('ERROR', `550 5.1.1 <${toEmail}>: Recipient address rejected: User unknown in local recipient table.`, true);
+                document.getElementById('movingPacket').style.display = 'none';
+                state.isSimulating = false;
+                return;
+            }
+
+            logProtocol('SMTP', `250 2.1.5 Ok | DATA -> 354 End data with <CR><LF>.<CR><LF> -> 250 2.0.0 Ok: queued as 9F4A12`);
+            await animatePath([NODES.MAIL, NODES.HUB, NODES.PCA], '250 OK', '#10b981');
+            await waitStepIfEnabled();
+
+            // Store email in server mailbox
+            const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+            state.inbox.push({
+                id: Date.now(),
+                from: fromEmail,
+                to: toEmail,
+                subject: subject,
+                body: body,
+                time: nowTime,
+                unread: true
+            });
+            document.getElementById('inboxOwnerLabel').textContent = `Akun: ${toEmail}`;
+
+            // --- STEP 4 & 5: DOVECOT RETRIEVAL TO PC-B (IMAP / POP3) ---
+            const proto = state.protocol;
+            const port = proto === 'IMAP' ? 143 : 110;
+            setSimBanner('running', `Tahap 4: PC-B mengambil email dari Dovecot MDA menggunakan protokol <b>${proto} (Port ${port})</b>...`, 'STEP 4/5');
+            setInspectorHeader(`TCP Port ${port} (${proto})`, `${state.pcbIp} ↔ ${aRec.value}`, `${proto === 'IMAP' ? 'A01 FETCH 1 BODY[]' : 'RETR 1'}`);
+            logProtocol(proto, `PC-B (${state.pcbIp}) terhubung ke Dovecot ${proto} Server (${aRec.value}:${port})...`);
+
+            await animatePath([NODES.PCB, NODES.HUB, NODES.MAIL], `${proto} REQ`, '#a855f7');
+            await waitStepIfEnabled();
+
+            setSimBanner('running', `Tahap 5: Mail Server mengirimkan isi pesan ke Inbox PC-B...`, 'STEP 5/5');
+            await animatePath([NODES.MAIL, NODES.HUB, NODES.PCB], 'MAIL DATA', '#a855f7');
+
+            if (proto === 'POP3') {
+                logProtocol('POP3', `RETR 1 selesai. Sesuai perilaku POP3 standar, salinan pesan di server dihapus (DELE 1).`);
+            } else {
+                logProtocol('IMAP', `FETCH selesai. Pesan tetap tersinkronisasi di direktori Maildir server.`);
+            }
+
+            renderInbox();
+            document.getElementById('movingPacket').style.display = 'none';
+            setSimBanner('success', `Email berhasil terkirim dari <b>${fromEmail}</b> dan diterima oleh <b>${toEmail}</b> via ${proto}!`, 'SELESAI');
+            state.isSimulating = false;
+
+            // Check Mission 3: Send email to admin@sekolah.sch.id
+            if (toEmail.toLowerCase() === `admin@${state.domain}`) {
+                completeMission('m3_send_admin');
+            }
+        }
+
+        async function fetchInboxAnimation() {
+            if (state.isSimulating) return;
+            const mailRunning = document.getElementById('faultMailRunning').checked;
+            if (!mailRunning) {
+                logProtocol('ERROR', 'Gagal sinkronisasi: Service Dovecot/Mail Server sedang mati!', true);
+                return;
+            }
+            state.isSimulating = true;
+            const proto = state.protocol;
+            const port = proto === 'IMAP' ? 143 : 110;
+            setSimBanner('running', `Sinkronisasi manual kotak masuk PC-B menggunakan ${proto} (Port ${port})...`, 'SYNC');
+            await animatePath([NODES.PCB, NODES.HUB, NODES.MAIL, NODES.HUB, NODES.PCB], `${proto} SYNC`, '#a855f7');
+            logProtocol(proto, `Sinkronisasi kotak masuk PC-B selesai (${state.inbox.length} pesan).`);
+            document.getElementById('movingPacket').style.display = 'none';
+            setSimBanner('idle', 'Kotak masuk PC-B telah disinkronisasi dengan Mail Server.', 'IDLE');
+            state.isSimulating = false;
+        }
+
+        /* ---------------------------------------------------------------------
+           8. MISSION CHECKLIST & INTERACTIVE QUIZ
+        --------------------------------------------------------------------- */
+        const missionDefinitions = [
+            {
+                id: 'm1_dns_test',
+                title: 'Misi 1: Uji Resolusi DNS (A & MX Record)',
+                desc: 'Jalankan simulasi "1. Uji Resolusi DNS" dan pastikan BIND9 memetakan domain ke IP Mail Server.'
+            },
+            {
+                id: 'm2_add_user',
+                title: 'Misi 2: Manajemen Akun Mailbox Pengguna',
+                desc: 'Buka tab "Mail Server (Postfix/Dovecot)" dan tambahkan minimal 1 akun email pengguna baru.'
+            },
+            {
+                id: 'm3_send_admin',
+                title: 'Misi 3: Pengiriman Email Antar Pengguna',
+                desc: 'Kirim email dari Webmail Client menuju alamat tujuan admin@sekolah.sch.id hingga diterima PC-B.'
+            },
+            {
+                id: 'm4_troubleshoot',
+                title: 'Misi 4: Analisis Troubleshooting Gangguan',
+                desc: 'Matikan salah satu service/port di panel "Simulasi Troubleshooting", lalu jalankan simulasi untuk mengamati pesan error.'
+            }
+        ];
+
+        function completeMission(missionId) {
+            if (!state.missions[missionId]) {
+                state.missions[missionId] = true;
+                const count = Object.values(state.missions).filter(Boolean).length;
+                document.getElementById('headerMissionCount').textContent = `${count}/4`;
+            }
+        }
+
+        function renderMissionChecklist() {
+            const container = document.getElementById('missionChecklistContainer');
+            container.innerHTML = missionDefinitions.map(m => {
+                const done = state.missions[m.id];
+                return `
+                    <div class="p-3 rounded-xl border ${done ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-slate-950 border-slate-800'} flex items-start space-x-3">
+                        <div class="mt-0.5">
+                            ${done 
+                                ? '<span class="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs">✓</span>' 
+                                : '<span class="w-5 h-5 rounded-full border-2 border-slate-600 block"></span>'}
+                        </div>
+                        <div>
+                            <div class="font-bold ${done ? 'text-emerald-400' : 'text-slate-200'}">${m.title}</div>
+                            <div class="text-slate-400 mt-0.5">${m.desc}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const quizQuestions = [
+            {
+                q: '1. Jenis Resource Record pada DNS Server (BIND9) yang berfungsi menentukan server tujuan penerima email untuk suatu domain adalah...',
+                options: ['A Record', 'CNAME Record', 'MX (Mail Exchanger) Record', 'PTR Record'],
+                ans: 2,
+                exp: 'MX (Mail Exchanger) Record memberi tahu pengirim (MTA) nama host server yang bertanggung jawab menerima email untuk domain tersebut, lengkap dengan nilai prioritasnya.'
+            },
+            {
+                q: '2. Protokol dan port standar yang digunakan antar Mail Server (MTA seperti Postfix) untuk mengirimkan email adalah...',
+                options: ['SMTP — TCP Port 25', 'POP3 — TCP Port 110', 'IMAP — TCP Port 143', 'DNS — UDP Port 53'],
+                ans: 0,
+                exp: 'Simple Mail Transfer Protocol (SMTP) menggunakan TCP Port 25 untuk transfer email antar Mail Transfer Agent (MTA).'
+            },
+            {
+                q: '3. Apa perbedaan mendasar antara protokol IMAP (Port 143) dan POP3 (Port 110) pada layanan Dovecot?',
+                options: [
+                    'IMAP digunakan untuk mengirim email, sedangkan POP3 untuk menerima email',
+                    'IMAP menyinkronkan folder dan menyimpan email di server, sedangkan POP3 umumnya mengunduh email ke perangkat lokal dan menghapusnya di server',
+                    'POP3 mendukung enkripsi SSL/TLS sedangkan IMAP tidak',
+                    'IMAP hanya bekerja tanpa DNS Server'
+                ],
+                ans: 1,
+                exp: 'IMAP memungkinkan pengguna mengakses dan mengelola folder email langsung di server dari banyak perangkat secara tersinkronisasi, sedangkan POP3 mengunduh pesan ke satu klien lokal.'
+            },
+            {
+                q: '4. Jika pada zone file BIND9 terdapat baris "@ IN MX 10 mail.sekolah.sch.id.", record pendamping apa yang wajib ada agar IP Mail Server dapat diketahui?',
+                options: [
+                    'mail IN A 192.168.1.3',
+                    'mail IN PTR 192.168.1.3',
+                    'ns1 IN NS mail.sekolah.sch.id',
+                    'www IN CNAME sekolah.sch.id'
+                ],
+                ans: 0,
+                exp: 'MX Record menunjuk ke nama domain (FQDN) mail.sekolah.sch.id, sehingga diperlukan A Record untuk memetakan nama host "mail" ke alamat IPv4 server.'
+            },
+            {
+                q: '5. Ketika pengguna mengirim email namun muncul pesan error "550 5.1.1 Recipient address rejected: User unknown", penyebab paling tepat adalah...',
+                options: [
+                    'Kabel jaringan ke DNS Server terputus',
+                    'Port 53 UDP diblokir oleh firewall',
+                    'Alamat username penerima belum dibuat/terdaftar pada Mail Server tujuan',
+                    'Protokol POP3 belum diaktifkan'
+                ],
+                ans: 2,
+                exp: 'Kode status SMTP 550 5.1.1 menandakan server mail berhasil dihubungi, namun akun pengguna (mailbox) tujuan tidak ditemukan di sistem penerima.'
+            }
+        ];
+
+        let quizUserAnswers = {};
+
+        function renderQuiz() {
+            const container = document.getElementById('quizListContainer');
+            container.innerHTML = quizQuestions.map((item, idx) => {
+                const chosen = quizUserAnswers[idx];
+                const isAnswered = chosen !== undefined;
+
+                const optsHtml = item.options.map((opt, oIdx) => {
+                    let cls = 'border-slate-800 bg-slate-950 hover:border-sky-500 text-slate-300';
+                    if (isAnswered) {
+                        if (oIdx === item.ans) cls = 'border-emerald-500 bg-emerald-500/15 text-emerald-300 font-semibold';
+                        else if (oIdx === chosen) cls = 'border-rose-500 bg-rose-500/15 text-rose-300';
+                        else cls = 'border-slate-800/60 bg-slate-950/50 text-slate-500';
+                    }
+                    return `
+                        <button onclick="selectQuizOption(${idx}, ${oIdx})" ${isAnswered ? 'disabled' : ''} 
+                            class="w-full text-left px-3 py-2 rounded-lg border text-xs transition flex items-center space-x-2 ${cls}">
+                            <span class="mono font-bold">${String.fromCharCode(65 + oIdx)}.</span>
+                            <span>${opt}</span>
+                        </button>
+                    `;
+                }).join('');
+
+                const expHtml = isAnswered ? `
+                    <div class="mt-2 p-2.5 rounded-lg text-[11px] ${chosen === item.ans ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-300 border border-rose-500/30'}">
+                        <strong>${chosen === item.ans ? '✓ Benar!' : '✕ Kurang Tepat.'}</strong> ${item.exp}
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                        <div class="text-xs font-semibold text-white leading-relaxed">${item.q}</div>
+                        <div class="space-y-1.5">${optsHtml}</div>
+                        ${expHtml}
+                    </div>
+                `;
+            }).join('');
+
+            let score = 0;
+            Object.keys(quizUserAnswers).forEach(k => {
+                if (quizUserAnswers[k] === quizQuestions[k].ans) score++;
+            });
+            document.getElementById('quizScoreText').textContent = `Skor: ${score}/${quizQuestions.length}`;
+        }
+
+        function selectQuizOption(qIdx, oIdx) {
+            quizUserAnswers[qIdx] = oIdx;
+            renderQuiz();
+        }
+
+        function resetQuiz() {
+            quizUserAnswers = {};
+            renderQuiz();
+        }
+
+        /* ---------------------------------------------------------------------
+           9. INITIALIZATION ON PAGE LOAD
+        --------------------------------------------------------------------- */
+        window.onload = function() {
+            document.getElementById('bindZoneEditor').value = defaultZoneText;
+            applyDnsZoneConfig();
+            renderMailUsers();
+            renderInbox();
+            renderQuiz();
+        };
+    </script>
+</body>
+</html>
