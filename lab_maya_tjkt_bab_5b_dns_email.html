@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Maya TJKT - Bab 5B: Integrasi Sistem Jaringan (DNS & Email Server)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151f32',
+                            900: '#0f172a',
+                            950: '#090d16',
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .packet {
+            position: absolute;
+            z-index: 30;
+            transition: all 1.1s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .node-active {
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+            border-color: #38bdf8 !important;
+            transform: scale(1.03);
+        }
+
+        .node-error {
+            box-shadow: 0 0 20px rgba(244, 63, 94, 0.6);
+            border-color: #f43f5e !important;
+        }
+
+        .node-success {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+            border-color: #10b981 !important;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-area, #print-area * {
+                visibility: visible;
+            }
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white !important;
+                color: black !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans min-h-screen flex flex-col selection:bg-sky-500 selection:text-white">
+
+    <!-- TOP NAVBAR -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 py-3 shadow-lg">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-4">
+            <!-- Brand & Title -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <i class="fa-solid fa-network-wired text-white text-lg"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-lg tracking-tight text-white">LAB MAYA TJKT</h1>
+                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30">
+                            BAB 5B
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400">Integrasi Sistem Jaringan: DNS Lookup &amp; Alur Email Server (SMTP/IMAP)</p>
+                </div>
+            </div>
+
+            <!-- Modal Navigation Buttons -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button onclick="openModal('modal-teori')" class="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium border border-slate-700 transition-all hover:border-sky-500/50">
+                    <i class="fa-solid fa-book-open text-sky-400"></i>
+                    <span>Teori Singkat</span>
+                </button>
+                <button onclick="openModal('modal-instruksi')" class="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium border border-slate-700 transition-all hover:border-amber-500/50">
+                    <i class="fa-solid fa-list-check text-amber-400"></i>
+                    <span>Instruksi Praktikum</span>
+                </button>
+                <button onclick="openModal('modal-lkpd')" class="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium shadow-md shadow-indigo-600/20 transition-all">
+                    <i class="fa-solid fa-file-signature"></i>
+                    <span>Pertanyaan LKPD</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN 3-COLUMN WORKSPACE -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+        <!-- COLUMN 1: KONFIGURASI DNS & EMAIL CLIENT -->
+        <section class="lg:col-span-3 flex flex-col gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-server text-sky-400"></i>
+                        <h2 class="font-semibold text-sm text-white">1. Konfigurasi DNS Zone</h2>
+                    </div>
+                    <span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded">192.168.10.2</span>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="loadPreset('valid')" class="flex-1 text-xs py-1.5 px-2 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition font-medium">
+                        <i class="fa-solid fa-check-circle mr-1"></i>Preset Valid
+                    </button>
+                    <button onclick="loadPreset('broken')" class="flex-1 text-xs py-1.5 px-2 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition font-medium">
+                        <i class="fa-solid fa-bug mr-1"></i>Simulasi Error
+                    </button>
+                </div>
+
+                <div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 space-y-2">
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <select id="dns-type" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-500">
+                            <option value="A">A Record</option>
+                            <option value="MX">MX Record</option>
+                        </select>
+                        <input type="text" id="dns-host" placeholder="Host (mis: smk.sch.id)" class="col-span-2 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-500">
+                    </div>
+                    <div class="flex gap-1.5">
+                        <input type="text" id="dns-value" placeholder="Target IP / Mail Host" class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-500">
+                        <button onclick="addDnsRecord()" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-xs font-medium transition">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1" id="dns-records-list"></div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col gap-3 flex-1">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-envelope-open-text text-indigo-400"></i>
+                        <h2 class="font-semibold text-sm text-white">2. Klien Email (MUA)</h2>
+                    </div>
+                    <span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded">SMTP:25 / IMAP:143</span>
+                </div>
+
+                <div class="space-y-2.5 text-xs">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Pengirim (Client A)</label>
+                        <input type="email" id="email-from" value="siswa1@smkn2.sch.id" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Penerima (Client B)</label>
+                        <input type="email" id="email-to" value="guru.tkj@smkn2.sch.id" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Subjek Pesan</label>
+                        <input type="text" id="email-subject" value="Laporan Praktikum DNS & Mail Server" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Isi Pesan</label>
+                        <textarea id="email-body" rows="2" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500 resize-none">Halo Pak, konfigurasi MX dan A record pada server Debian sudah berhasil diuji.</textarea>
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-2 flex gap-2">
+                    <button id="btn-send" onclick="startSimulation()" class="flex-1 py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold rounded-lg text-xs shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Kirim &amp; Simulasikan</span>
+                    </button>
+                    <button onclick="resetSimulation()" title="Reset Simulasi" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMN 2: VISUALISASI TOPOLOGI & ANIMASI PAKET -->
+        <section class="lg:col-span-5 flex flex-col gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex-1 flex flex-col relative overflow-hidden">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-project text-emerald-400"></i>
+                        <h2 class="font-semibold text-sm text-white">Topologi &amp; Alur Paket Jaringan</h2>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px]">
+                        <span class="flex items-center gap-1 text-amber-400"><span class="w-2 h-2 rounded-full bg-amber-400"></span>DNS</span>
+                        <span class="flex items-center gap-1 text-sky-400"><span class="w-2 h-2 rounded-full bg-sky-400"></span>SMTP</span>
+                        <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>IMAP</span>
+                    </div>
+                </div>
+
+                <div id="topology-stage" class="relative flex-1 min-h-[380px] bg-slate-950/80 rounded-xl border border-slate-800/80 p-4 flex flex-col justify-between select-none" style="background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 20px 20px;">
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none z-10" id="topology-lines">
+                        <line x1="22%" y1="22%" x2="78%" y2="22%" stroke="#334155" stroke-width="2" stroke-dasharray="5,5" />
+                        <line x1="22%" y1="25%" x2="22%" y2="75%" stroke="#334155" stroke-width="2" />
+                        <line x1="25%" y1="72%" x2="75%" y2="25%" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,4" />
+                        <line x1="22%" y1="78%" x2="78%" y2="78%" stroke="#334155" stroke-width="2" />
+                    </svg>
+
+                    <div id="anim-packet" class="packet hidden">
+                        <div id="packet-badge" class="px-2.5 py-1 rounded-full text-[10px] font-bold shadow-lg flex items-center gap-1.5 border whitespace-nowrap bg-amber-500 text-slate-950 border-amber-300">
+                            <i id="packet-icon" class="fa-solid fa-magnifying-glass"></i>
+                            <span id="packet-label">DNS Query</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-start z-20">
+                        <div id="node-client-a" class="w-36 sm:w-40 bg-slate-900/95 border-2 border-slate-700 rounded-xl p-2.5 text-center transition-all duration-300">
+                            <div class="w-9 h-9 mx-auto rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-1.5">
+                                <i class="fa-solid fa-laptop-code text-base"></i>
+                            </div>
+                            <h3 class="text-xs font-bold text-white">Client A (Pengirim)</h3>
+                            <p class="text-[10px] font-mono text-slate-400">IP: 192.168.10.10</p>
+                            <span id="status-client-a" class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">MUA Ready</span>
+                        </div>
+
+                        <div id="node-dns" class="w-36 sm:w-40 bg-slate-900/95 border-2 border-slate-700 rounded-xl p-2.5 text-center transition-all duration-300">
+                            <div class="w-9 h-9 mx-auto rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center mb-1.5">
+                                <i class="fa-solid fa-globe text-base"></i>
+                            </div>
+                            <h3 class="text-xs font-bold text-white">Local DNS Server</h3>
+                            <p class="text-[10px] font-mono text-slate-400">IP: 192.168.10.2</p>
+                            <span id="status-dns" class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Bind9 Active (UDP 53)</span>
+                        </div>
+                    </div>
+
+                    <div class="my-auto mx-auto z-20">
+                        <div id="stage-banner" class="px-3 py-1.5 rounded-full bg-slate-900/90 border border-slate-700 text-[11px] text-slate-300 shadow-md flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-slate-500" id="stage-dot"></span>
+                            <span id="stage-text">Menunggu perintah pengiriman email...</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-end z-20">
+                        <div id="node-mail" class="w-36 sm:w-40 bg-slate-900/95 border-2 border-slate-700 rounded-xl p-2.5 text-center transition-all duration-300">
+                            <div class="w-9 h-9 mx-auto rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center mb-1.5">
+                                <i class="fa-solid fa-envelopes-bulk text-base"></i>
+                            </div>
+                            <h3 class="text-xs font-bold text-white">Mail Server (MTA/MDA)</h3>
+                            <p class="text-[10px] font-mono text-slate-400">IP: 192.168.10.5</p>
+                            <span id="status-mail" class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Postfix &amp; Dovecot</span>
+                        </div>
+
+                        <div id="node-client-b" class="w-36 sm:w-40 bg-slate-900/95 border-2 border-slate-700 rounded-xl p-2.5 text-center transition-all duration-300">
+                            <div class="w-9 h-9 mx-auto rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-1.5">
+                                <i class="fa-solid fa-desktop text-base"></i>
+                            </div>
+                            <h3 class="text-xs font-bold text-white">Client B (Penerima)</h3>
+                            <p class="text-[10px] font-mono text-slate-400">IP: 192.168.10.20</p>
+                            <span id="status-client-b" class="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">IMAP Idle</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-inbox text-emerald-400"></i>
+                            Kotak Masuk Client B (<span id="inbox-owner">guru.tkj@smkn2.sch.id</span>)
+                        </span>
+                        <span id="inbox-count" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">0 Pesan</span>
+                    </div>
+                    <div id="client-b-inbox" class="text-xs text-slate-500 italic py-2 text-center border border-dashed border-slate-800 rounded">
+                        Belum ada email masuk. Jalankan simulasi untuk mengirim pesan.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMN 3: LOG PROSES BERTAHAP & STATUS EVALUASI -->
+        <section class="lg:col-span-4 flex flex-col gap-4">
+            <div id="eval-card" class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl transition-all duration-300">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="font-semibold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-clipboard-check text-sky-400"></i>
+                        Status Evaluasi Praktikum
+                    </h2>
+                    <span id="eval-badge" class="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+                        SIAP UJI
+                    </span>
+                </div>
+                <p id="eval-summary" class="text-xs text-slate-400 leading-relaxed">
+                    Sistem siap melakukan pengujian integrasi DNS Lookup (MX &amp; A Record) serta pengiriman email antar-klien.
+                </p>
+                <div class="mt-3 pt-3 border-t border-slate-800 grid grid-cols-2 gap-2 text-[11px]">
+                    <div id="chk-mx" class="flex items-center gap-1.5 text-slate-500">
+                        <i class="fa-regular fa-circle"></i> <span>Resolusi MX Record</span>
+                    </div>
+                    <div id="chk-a" class="flex items-center gap-1.5 text-slate-500">
+                        <i class="fa-regular fa-circle"></i> <span>Resolusi A Record (IP)</span>
+                    </div>
+                    <div id="chk-smtp" class="flex items-center gap-1.5 text-slate-500">
+                        <i class="fa-regular fa-circle"></i> <span>Transmisi SMTP (Port 25)</span>
+                    </div>
+                    <div id="chk-imap" class="flex items-center gap-1.5 text-slate-500">
+                        <i class="fa-regular fa-circle"></i> <span>Sinkronisasi IMAP (143)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex-1 flex flex-col min-h-[300px]">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-amber-400"></i>
+                        <h2 class="font-semibold text-sm text-white">Log Proses Bertahap</h2>
+                    </div>
+                    <button onclick="clearLogs()" class="text-[11px] text-slate-400 hover:text-white transition">
+                        <i class="fa-solid fa-eraser mr-1"></i>Bersihkan
+                    </button>
+                </div>
+
+                <div id="process-log" class="flex-1 bg-slate-950 rounded-lg border border-slate-800/90 p-3 font-mono text-[11px] space-y-2 overflow-y-auto max-h-[360px]">
+                    <div class="text-slate-500">[SYSTEM] Lab Maya TJKT v2.5 siap. Silakan periksa DNS Record dan klik "Kirim &amp; Simulasikan".</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900/60 border-t border-slate-800/80 py-2.5 px-4 text-center text-xs text-slate-500">
+        Media Pembelajaran Interaktif Teknik Jaringan Komputer dan Telekomunikasi (TJKT) &bull; Bab 5B: Integrasi DNS &amp; Mail Server
+    </footer>
+
+    <!-- MODALS -->
+    <div id="modal-teori" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between p-4 border-b border-slate-800">
+                <h3 class="font-bold text-base text-white flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-sky-400"></i>
+                    Teori Singkat: Integrasi DNS &amp; Email Server
+                </h3>
+                <button onclick="closeModal('modal-teori')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-4 text-sm text-slate-300 leading-relaxed">
+                <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                    <h4 class="font-semibold text-sky-400 mb-1">1. Peran DNS dalam Layanan Email</h4>
+                    <p class="text-xs text-slate-300">
+                        Agar email dapat dikirim ke domain tujuan (misalnya <code class="text-amber-300">smkn2.sch.id</code>), server pengirim tidak bisa langsung menebak alamat IP tujuan. Diperlukan dua jenis record utama pada DNS Server (seperti BIND9):
+                    </p>
+                    <ul class="list-disc list-inside text-xs text-slate-300 mt-2 space-y-1">
+                        <li><strong class="text-white">MX Record (Mail Exchanger):</strong> Menunjuk nama host server yang bertanggung jawab menerima email untuk domain tersebut (contoh: <code class="text-emerald-400">smkn2.sch.id &rarr; mail.smkn2.sch.id</code>).</li>
+                        <li><strong class="text-white">A Record (Address Record):</strong> Menerjemahkan hostname Mail Server menjadi alamat IPv4 fisik (contoh: <code class="text-emerald-400">mail.smkn2.sch.id &rarr; 192.168.10.5</code>).</li>
+                    </ul>
+                </div>
+
+                <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                    <h4 class="font-semibold text-indigo-400 mb-1">2. Komponen &amp; Protokol Email Server</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2 text-xs">
+                        <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                            <span class="font-bold text-white block mb-1">SMTP (Port 25 / 587)</span>
+                            <p class="text-slate-400"><em>Simple Mail Transfer Protocol</em> bertugas mendorong/mengirim email dari Client (MUA) ke Mail Server (MTA) maupun antar Mail Server.</p>
+                        </div>
+                        <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                            <span class="font-bold text-white block mb-1">IMAP (Port 143 / 993)</span>
+                            <p class="text-slate-400"><em>Internet Message Access Protocol</em> menyinkronkan kotak masuk antara server (MDA) dan perangkat penerima tanpa menghapus email di server.</p>
+                        </div>
+                        <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                            <span class="font-bold text-white block mb-1">POP3 (Port 110 / 995)</span>
+                            <p class="text-slate-400"><em>Post Office Protocol v3</em> mengunduh email dari server ke perangkat lokal penerima (umumnya menghapus salinan di server).</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 text-right">
+                <button onclick="closeModal('modal-teori')" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg">Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-instruksi" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between p-4 border-b border-slate-800">
+                <h3 class="font-bold text-base text-white flex items-center gap-2">
+                    <i class="fa-solid fa-list-check text-amber-400"></i>
+                    Instruksi Praktikum Lab Maya
+                </h3>
+                <button onclick="closeModal('modal-instruksi')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div class="flex gap-3 items-start bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                    <span class="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 font-bold flex items-center justify-center shrink-0">1</span>
+                    <div>
+                        <h4 class="font-semibold text-white text-sm">Pengujian Normal (Integrasi Berhasil)</h4>
+                        <p class="text-slate-400 mt-0.5">Pastikan zona DNS memiliki <strong>MX Record</strong> untuk domain tujuan (<code class="text-sky-300">smkn2.sch.id &rarr; mail.smkn2.sch.id</code>) dan <strong>A Record</strong> untuk host mail (<code class="text-sky-300">mail.smkn2.sch.id &rarr; 192.168.10.5</code>). Klik <strong>Kirim &amp; Simulasikan</strong> lalu amati pergerakan paket DNS, SMTP, dan IMAP.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 items-start bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                    <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center shrink-0">2</span>
+                    <div>
+                        <h4 class="font-semibold text-white text-sm">Analisis Kegagalan DNS (Troubleshooting)</h4>
+                        <p class="text-slate-400 mt-0.5">Klik tombol <strong>Simulasi Error</strong> (atau hapus MX/A record secara manual pada panel kiri). Jalankan kembali simulasi dan catat pada tahap mana pengiriman email terhenti serta pesan kesalahan yang muncul di panel Log.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 items-start bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                    <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center shrink-0">3</span>
+                    <div>
+                        <h4 class="font-semibold text-white text-sm">Uji Domain Kustom Kelompok</h4>
+                        <p class="text-slate-400 mt-0.5">Tambahkan record DNS baru menggunakan nama domain kelompokmu (contoh: <code class="text-emerald-300">kelompok1.net</code>). Ubah alamat email pengirim dan penerima sesuai domain baru tersebut, lalu buktikan bahwa email berhasil diterima di Kotak Masuk Client B.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 items-start bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                    <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 font-bold flex items-center justify-center shrink-0">4</span>
+                    <div>
+                        <h4 class="font-semibold text-white text-sm">Pengisian Lembar Kerja (LKPD)</h4>
+                        <p class="text-slate-400 mt-0.5">Buka menu <strong>Pertanyaan LKPD</strong> di pojok kanan atas, jawab seluruh pertanyaan analisis berdasarkan hasil pengamatan simulasi, lalu cetak atau simpan hasil jawabanmu.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 text-right">
+                <button onclick="closeModal('modal-instruksi')" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg">Mulai Praktikum</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-lkpd" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between p-4 border-b border-slate-800">
+                <h3 class="font-bold text-base text-white flex items-center gap-2">
+                    <i class="fa-solid fa-file-signature text-indigo-400"></i>
+                    Lembar Kerja Peserta Didik (LKPD) - Bab 5B
+                </h3>
+                <button onclick="closeModal('modal-lkpd')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div id="print-area" class="p-5 overflow-y-auto space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Nama Siswa / Kelompok</label>
+                        <input type="text" id="lkpd-nama" placeholder="Contoh: Kelompok 2 - XII TKJ" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Kelas / Kompetensi Keahlian</label>
+                        <input type="text" id="lkpd-kelas" placeholder="Contoh: XII TKJ 2" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                    <p class="font-semibold text-slate-200">1. Mengapa proses pengiriman email membutuhkan dua kali proses resolusi DNS (MX Record terlebih dahulu, baru kemudian A Record)?</p>
+                    <textarea id="ans-1" rows="2" placeholder="Tuliskan analisis kelompokmu..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-indigo-500"></textarea>
+                    <div id="key-1" class="hidden p-2 rounded bg-emerald-950/60 border border-emerald-700/50 text-emerald-300">
+                        <strong>Kunci Pembahasan:</strong> MX Record hanya memberikan nama host (FQDN) dari Mail Server tujuan (misal <code>mail.smkn2.sch.id</code>), bukan alamat IP. Oleh karena itu, sistem wajib melakukan query A Record untuk menerjemahkan hostname Mail Server tersebut menjadi alamat IP tujuan pengiriman paket.
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                    <p class="font-semibold text-slate-200">2. Berdasarkan percobaan "Simulasi Error" (ketika MX Record hilang atau A Record tidak mengarah ke IP Mail Server), apa dampak yang terjadi pada protokol SMTP?</p>
+                    <textarea id="ans-2" rows="2" placeholder="Tuliskan hasil pengamatan dari Log Proses..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-indigo-500"></textarea>
+                    <div id="key-2" class="hidden p-2 rounded bg-emerald-950/60 border border-emerald-700/50 text-emerald-300">
+                        <strong>Kunci Pembahasan:</strong> Koneksi SMTP tidak pernah terjadi (gagal sebelum transmisi) karena pengirim tidak mengetahui alamat IP server tujuan (<em>NXDOMAIN / Host Unreachable</em>), sehingga pesan gagal dikirim dan dikembalikan ke pengirim (<em>Mail Delivery Subsystem / Bounce</em>).
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                    <p class="font-semibold text-slate-200">3. Jelaskan perbedaan fungsi antara protokol SMTP (Port 25) dan IMAP (Port 143) dalam alur pengiriman hingga pembacaan email pada simulasi di atas!</p>
+                    <textarea id="ans-3" rows="2" placeholder="Tuliskan jawabanmu..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-indigo-500"></textarea>
+                    <div id="key-3" class="hidden p-2 rounded bg-emerald-950/60 border border-emerald-700/50 text-emerald-300">
+                        <strong>Kunci Pembahasan:</strong> SMTP berfungsi mengirim (push) email dari Client A menuju Mail Server dan meneruskannya ke kotak surat tujuan. Sedangkan IMAP berfungsi mengambil dan menyinkronkan (pull/sync) email yang tersimpan di Mail Server agar dapat dibaca oleh Client B.
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <button onclick="toggleAnswerKeys()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg transition">
+                    <i class="fa-solid fa-key mr-1.5"></i>Tampilkan / Sembunyikan Kunci Pembahasan
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="window.print()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition">
+                        <i class="fa-solid fa-print mr-1.5"></i>Cetak / Simpan PDF
+                    </button>
+                    <button onclick="closeModal('modal-lkpd')" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dnsRecords = [
+            { id: 1, type: 'MX', host: 'smkn2.sch.id', value: 'mail.smkn2.sch.id', active: true },
+            { id: 2, type: 'A', host: 'mail.smkn2.sch.id', value: '192.168.10.5', active: true },
+            { id: 3, type: 'A', host: 'smkn2.sch.id', value: '192.168.10.1', active: true }
+        ];
+
+        let isSimulating = false;
+        let receivedEmails = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDnsRecords();
+            document.getElementById('email-to').addEventListener('input', (e) => {
+                document.getElementById('inbox-owner').textContent = e.target.value || 'penerima@domain';
+            });
+        });
+
+        function renderDnsRecords() {
+            const container = document.getElementById('dns-records-list');
+            if (dnsRecords.length === 0) {
+                container.innerHTML = `<div class="text-center text-[11px] text-slate-500 py-3 border border-dashed border-slate-800 rounded">Zona DNS kosong. Tambahkan record baru!</div>`;
+                return;
+            }
+
+            container.innerHTML = dnsRecords.map(rec => `
+                <div class="flex items-center justify-between bg-slate-950/90 border ${rec.active ? 'border-slate-800' : 'border-rose-900/50 opacity-60'} rounded-lg px-2.5 py-1.5 text-[11px] group">
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <span class="font-bold px-1.5 py-0.5 rounded text-[10px] ${rec.type === 'MX' ? 'bg-amber-500/20 text-amber-400' : 'bg-sky-500/20 text-sky-400'}">
+                            ${rec.type}
+                        </span>
+                        <div class="truncate">
+                            <span class="text-slate-200 font-mono">${rec.host}</span>
+                            <span class="text-slate-500 mx-1">&rarr;</span>
+                            <span class="text-emerald-400 font-mono">${rec.value}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0 ml-1">
+                        <button onclick="toggleDnsRecord(${rec.id})" title="${rec.active ? 'Nonaktifkan' : 'Aktifkan'}" class="p-1 text-slate-400 hover:text-amber-400 transition">
+                            <i class="fa-solid ${rec.active ? 'fa-toggle-on text-emerald-400' : 'fa-toggle-off text-slate-600'}"></i>
+                        </button>
+                        <button onclick="deleteDnsRecord(${rec.id})" title="Hapus" class="p-1 text-slate-500 hover:text-rose-400 transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addDnsRecord() {
+            const type = document.getElementById('dns-type').value;
+            const host = document.getElementById('dns-host').value.trim().toLowerCase();
+            const value = document.getElementById('dns-value').value.trim().toLowerCase();
+
+            if (!host || !value) {
+                appendLog('WARNING', 'Host dan Target IP/Mail Host tidak boleh kosong!', 'text-amber-400');
+                return;
+            }
+
+            dnsRecords.push({
+                id: Date.now(),
+                type,
+                host,
+                value,
+                active: true
+            });
+
+            document.getElementById('dns-host').value = '';
+            document.getElementById('dns-value').value = '';
+            renderDnsRecords();
+            appendLog('DNS-CFG', `Menambahkan ${type} Record: ${host} -> ${value}`, 'text-sky-400');
+        }
+
+        function toggleDnsRecord(id) {
+            dnsRecords = dnsRecords.map(r => r.id === id ? { ...r, active: !r.active } : r);
+            renderDnsRecords();
+        }
+
+        function deleteDnsRecord(id) {
+            dnsRecords = dnsRecords.filter(r => r.id !== id);
+            renderDnsRecords();
+        }
+
+        function loadPreset(mode) {
+            if (mode === 'valid') {
+                dnsRecords = [
+                    { id: 1, type: 'MX', host: 'smkn2.sch.id', value: 'mail.smkn2.sch.id', active: true },
+                    { id: 2, type: 'A', host: 'mail.smkn2.sch.id', value: '192.168.10.5', active: true },
+                    { id: 3, type: 'A', host: 'smkn2.sch.id', value: '192.168.10.1', active: true }
+                ];
+                document.getElementById('email-from').value = 'siswa1@smkn2.sch.id';
+                document.getElementById('email-to').value = 'guru.tkj@smkn2.sch.id';
+                document.getElementById('inbox-owner').textContent = 'guru.tkj@smkn2.sch.id';
+                appendLog('PRESET', 'Memuat konfigurasi DNS & Email Valid.', 'text-emerald-400');
+            } else {
+                dnsRecords = [
+                    { id: 1, type: 'MX', host: 'smkn2.sch.id', value: 'mail.smkn2.sch.id', active: false },
+                    { id: 2, type: 'A', host: 'mail.smkn2.sch.id', value: '192.168.10.99', active: true }
+                ];
+                appendLog('PRESET', 'Memuat skenario Troubleshooting (MX Record Nonaktif / IP Salah).', 'text-rose-400');
+            }
+            renderDnsRecords();
+            resetSimulation(false);
+        }
+
+        function appendLog(tag, message, colorClass = 'text-slate-300') {
+            const logBox = document.getElementById('process-log');
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            const entry = document.createElement('div');
+            entry.className = 'leading-relaxed border-b border-slate-900 pb-1';
+            entry.innerHTML = `<span class="text-slate-600">[${timeStr}]</span> <span class="font-bold ${colorClass}">[${tag}]</span> <span class="text-slate-300">${message}</span>`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('process-log').innerHTML = `<div class="text-slate-500">[SYSTEM] Log dibersihkan.</div>`;
+        }
+
+        function setCheckState(id, state) {
+            const el = document.getElementById(id);
+            const text = el.querySelector('span').textContent;
+            if (state === 'pending') {
+                el.className = 'flex items-center gap-1.5 text-slate-500';
+                el.innerHTML = `<i class="fa-regular fa-circle"></i> <span>${text}</span>`;
+            } else if (state === 'loading') {
+                el.className = 'flex items-center gap-1.5 text-amber-400';
+                el.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>${text}</span>`;
+            } else if (state === 'success') {
+                el.className = 'flex items-center gap-1.5 text-emerald-400 font-medium';
+                el.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${text}</span>`;
+            } else if (state === 'error') {
+                el.className = 'flex items-center gap-1.5 text-rose-400 font-medium';
+                el.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> <span>${text}</span>`;
+            }
+        }
+
+        function setEvaluation(status, titleBadge, summaryText) {
+            const card = document.getElementById('eval-card');
+            const badge = document.getElementById('eval-badge');
+            const summary = document.getElementById('eval-summary');
+
+            summary.textContent = summaryText;
+            badge.textContent = titleBadge;
+
+            if (status === 'success') {
+                card.className = 'bg-emerald-950/30 border border-emerald-500/50 rounded-xl p-4 shadow-xl transition-all duration-300';
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+            } else if (status === 'error') {
+                card.className = 'bg-rose-950/30 border border-rose-500/50 rounded-xl p-4 shadow-xl transition-all duration-300';
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/40';
+            } else if (status === 'running') {
+                card.className = 'bg-sky-950/20 border border-sky-500/40 rounded-xl p-4 shadow-xl transition-all duration-300';
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-400 border border-sky-500/40';
+            } else {
+                card.className = 'bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl transition-all duration-300';
+                badge.className = 'text-xs font-bold px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 border border-slate-700';
+            }
+        }
+
+        function movePacket(fromCoords, toCoords, label, iconClass, colorTheme) {
+            return new Promise(resolve => {
+                const pkt = document.getElementById('anim-packet');
+                const badge = document.getElementById('packet-badge');
+                const icon = document.getElementById('packet-icon');
+                const text = document.getElementById('packet-label');
+
+                const themes = {
+                    dns: 'bg-amber-500 text-slate-950 border-amber-200',
+                    smtp: 'bg-sky-500 text-white border-sky-200',
+                    imap: 'bg-emerald-500 text-slate-950 border-emerald-200',
+                    error: 'bg-rose-600 text-white border-rose-300'
+                };
+
+                badge.className = `px-2.5 py-1 rounded-full text-[10px] font-bold shadow-lg flex items-center gap-1.5 border whitespace-nowrap ${themes[colorTheme] || themes.dns}`;
+                icon.className = `fa-solid ${iconClass}`;
+                text.textContent = label;
+
+                pkt.style.transition = 'none';
+                pkt.style.left = fromCoords.x;
+                pkt.style.top = fromCoords.y;
+                pkt.classList.remove('hidden');
+
+                void pkt.offsetWidth;
+
+                pkt.style.transition = 'all 1.1s cubic-bezier(0.4, 0, 0.2, 1)';
+                pkt.style.left = toCoords.x;
+                pkt.style.top = toCoords.y;
+
+                setTimeout(() => {
+                    resolve();
+                }, 1150);
+            });
+        }
+
+        function highlightNode(nodeId, state) {
+            const el = document.getElementById(nodeId);
+            el.classList.remove('node-active', 'node-error', 'node-success');
+            if (state === 'active') el.classList.add('node-active');
+            if (state === 'error') el.classList.add('node-error');
+            if (state === 'success') el.classList.add('node-success');
+        }
+
+        function setStageBanner(text, dotColor = 'bg-sky-400') {
+            document.getElementById('stage-text').textContent = text;
+            document.getElementById('stage-dot').className = `w-2 h-2 rounded-full ${dotColor} animate-pulse`;
+        }
+
+        function resetSimulation(clearLogFlag = true) {
+            isSimulating = false;
+            document.getElementById('anim-packet').classList.add('hidden');
+            ['node-client-a', 'node-dns', 'node-mail', 'node-client-b'].forEach(id => highlightNode(id, 'none'));
+            ['chk-mx', 'chk-a', 'chk-smtp', 'chk-imap'].forEach(id => setCheckState(id, 'pending'));
+            setEvaluation('idle', 'SIAP UJI', 'Sistem siap melakukan pengujian integrasi DNS Lookup (MX & A Record) serta pengiriman email antar-klien.');
+            setStageBanner('Menunggu perintah pengiriman email...', 'bg-slate-500');
+            if (clearLogFlag) clearLogs();
+        }
+
+        async function startSimulation() {
+            if (isSimulating) return;
+
+            const fromEmail = document.getElementById('email-from').value.trim();
+            const toEmail = document.getElementById('email-to').value.trim();
+            const subject = document.getElementById('email-subject').value.trim() || '(Tanpa Subjek)';
+            const body = document.getElementById('email-body').value.trim();
+
+            if (!fromEmail.includes('@') || !toEmail.includes('@')) {
+                appendLog('ERROR', 'Format alamat email pengirim atau penerima tidak valid!', 'text-rose-400');
+                return;
+            }
+
+            const targetDomain = toEmail.split('@')[1].toLowerCase();
+            resetSimulation(false);
+            isSimulating = true;
+            document.getElementById('btn-send').disabled = true;
+            document.getElementById('btn-send').classList.add('opacity-60');
+
+            const pos = {
+                clientA: { x: '18%', y: '18%' },
+                dns:     { x: '72%', y: '18%' },
+                mail:    { x: '18%', y: '75%' },
+                clientB: { x: '72%', y: '75%' }
+            };
+
+            setEvaluation('running', 'MEMPROSES...', `Memulai resolusi DNS dan pengiriman email ke domain @${targetDomain}...`);
+            appendLog('MUA', `Client A (${fromEmail}) menyiapkan email untuk ${toEmail}`, 'text-indigo-400');
+
+            highlightNode('node-client-a', 'active');
+            setCheckState('chk-mx', 'loading');
+            setStageBanner(`Tahap 1: Query MX Record untuk ${targetDomain}...`, 'bg-amber-400');
+            appendLog('DNS-QRY', `Mengirim DNS Query (Type: MX) untuk domain "${targetDomain}" ke 192.168.10.2`, 'text-amber-400');
+
+            await movePacket(pos.clientA, pos.dns, `MX? ${targetDomain}`, 'fa-magnifying-glass', 'dns');
+            highlightNode('node-dns', 'active');
+
+            const mxRecord = dnsRecords.find(r => r.active && r.type === 'MX' && r.host === targetDomain);
+
+            if (!mxRecord) {
+                setCheckState('chk-mx', 'error');
+                highlightNode('node-dns', 'error');
+                await movePacket(pos.dns, pos.clientA, 'NXDOMAIN (No MX)', 'fa-triangle-exclamation', 'error');
+                highlightNode('node-client-a', 'error');
+                appendLog('DNS-ERR', `Gagal menemukan MX Record aktif untuk domain "${targetDomain}"!`, 'text-rose-400');
+                setStageBanner('Gagal: MX Record tidak ditemukan di DNS Server.', 'bg-rose-500');
+                setEvaluation('error', 'GAGAL (DNS MX)', `Pengiriman dibatalkan: DNS Server tidak memiliki MX Record aktif untuk domain "${targetDomain}". Tambahkan atau aktifkan MX Record terlebih dahulu.`);
+                finishSim();
+                return;
+            }
+
+            setCheckState('chk-mx', 'success');
+            appendLog('DNS-ANS', `MX Record ditemukan: ${targetDomain} -> ${mxRecord.value}`, 'text-emerald-400');
+            await movePacket(pos.dns, pos.clientA, `MX: ${mxRecord.value}`, 'fa-check', 'dns');
+
+            setCheckState('chk-a', 'loading');
+            setStageBanner(`Tahap 2: Query A Record untuk ${mxRecord.value}...`, 'bg-amber-400');
+            appendLog('DNS-QRY', `Mengirim DNS Query (Type: A) untuk hostname "${mxRecord.value}"`, 'text-amber-400');
+
+            await movePacket(pos.clientA, pos.dns, `A? ${mxRecord.value}`, 'fa-magnifying-glass', 'dns');
+
+            const aRecord = dnsRecords.find(r => r.active && r.type === 'A' && r.host === mxRecord.value);
+
+            if (!aRecord) {
+                setCheckState('chk-a', 'error');
+                highlightNode('node-dns', 'error');
+                await movePacket(pos.dns, pos.clientA, 'ERR: No A Record', 'fa-triangle-exclamation', 'error');
+                highlightNode('node-client-a', 'error');
+                appendLog('DNS-ERR', `Hostname "${mxRecord.value}" tidak memiliki A Record (IP Address)!`, 'text-rose-400');
+                setStageBanner('Gagal: IP Address Mail Server tidak terdefinisi.', 'bg-rose-500');
+                setEvaluation('error', 'GAGAL (DNS A)', `MX Record mengarah ke "${mxRecord.value}", tetapi tidak ditemukan A Record untuk menerjemahkannya ke IP Address.`);
+                finishSim();
+                return;
+            }
+
+            setCheckState('chk-a', 'success');
+            highlightNode('node-dns', 'success');
+            appendLog('DNS-ANS', `A Record ditemukan: ${mxRecord.value} -> ${aRecord.value}`, 'text-emerald-400');
+            await movePacket(pos.dns, pos.clientA, `IP: ${aRecord.value}`, 'fa-server', 'dns');
+
+            setCheckState('chk-smtp', 'loading');
+            setStageBanner(`Tahap 3: Mengirim paket SMTP ke ${aRecord.value}:25...`, 'bg-sky-400');
+            appendLog('SMTP', `Menghubungi Mail Server di ${aRecord.value} port 25 (EHLO / MAIL FROM / RCPT TO)...`, 'text-sky-400');
+
+            await movePacket(pos.clientA, pos.mail, 'SMTP PUSH (Port 25)', 'fa-paper-plane', 'smtp');
+
+            if (aRecord.value !== '192.168.10.5') {
+                setCheckState('chk-smtp', 'error');
+                highlightNode('node-mail', 'error');
+                await movePacket(pos.mail, pos.clientA, 'Connection Timeout', 'fa-ban', 'error');
+                highlightNode('node-client-a', 'error');
+                appendLog('SMTP-ERR', `Connection Refused/Timeout! IP ${aRecord.value} bukan Mail Server aktif (Seharusnya 192.168.10.5).`, 'text-rose-400');
+                setStageBanner('Gagal: IP tujuan bukan Mail Server yang valid.', 'bg-rose-500');
+                setEvaluation('error', 'GAGAL (SMTP)', `Resolusi DNS mengarah ke IP ${aRecord.value}, tetapi tidak ada layanan Mail Server (Postfix) pada IP tersebut. Periksa kembali A Record Anda.`);
+                finishSim();
+                return;
+            }
+
+            setCheckState('chk-smtp', 'success');
+            highlightNode('node-client-a', 'success');
+            highlightNode('node-mail', 'active');
+            appendLog('SMTP-OK', `250 2.0.0 Ok: queued as 8F3A192B pada Mail Server (192.168.10.5).`, 'text-emerald-400');
+
+            setCheckState('chk-imap', 'loading');
+            setStageBanner('Tahap 4: Sinkronisasi IMAP ke Client B (Port 143)...', 'bg-emerald-400');
+            appendLog('IMAP', `Client B (${toEmail}) melakukan sinkronisasi folder INBOX via IMAP (Port 143)...`, 'text-emerald-400');
+
+            await movePacket(pos.mail, pos.clientB, 'IMAP SYNC (Port 143)', 'fa-envelope', 'imap');
+
+            setCheckState('chk-imap', 'success');
+            highlightNode('node-mail', 'success');
+            highlightNode('node-client-b', 'success');
+            document.getElementById('anim-packet').classList.add('hidden');
+
+            const timeNow = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            receivedEmails.unshift({ from: fromEmail, to: toEmail, subject, body, time: timeNow });
+            renderInbox();
+
+            appendLog('DELIVERED', `Email berhasil diterima oleh ${toEmail} di Client B!`, 'text-emerald-400');
+            setStageBanner('Integrasi Berhasil! Email diterima oleh Client B.', 'bg-emerald-400');
+            setEvaluation('success', 'BERHASIL', `Seluruh tahapan integrasi DNS (MX -> ${mxRecord.value} -> ${aRecord.value}), pengiriman SMTP, dan sinkronisasi IMAP ke ${toEmail} berjalan sukses.`);
+
+            finishSim();
+        }
+
+        function finishSim() {
+            isSimulating = false;
+            document.getElementById('btn-send').disabled = false;
+            document.getElementById('btn-send').classList.remove('opacity-60');
+        }
+
+        function renderInbox() {
+            const box = document.getElementById('client-b-inbox');
+            const count = document.getElementById('inbox-count');
+            count.textContent = `${receivedEmails.length} Pesan`;
+            count.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold';
+
+            box.className = 'space-y-1.5 max-h-28 overflow-y-auto';
+            box.innerHTML = receivedEmails.map(mail => `
+                <div class="bg-slate-900 border border-slate-800 rounded p-2 text-left">
+                    <div class="flex justify-between items-center text-[10px] text-slate-400">
+                        <span class="font-mono text-sky-400">Dari: ${mail.from}</span>
+                        <span>${mail.time}</span>
+                    </div>
+                    <div class="font-semibold text-xs text-white truncate mt-0.5">${mail.subject}</div>
+                    <div class="text-[11px] text-slate-400 truncate">${mail.body}</div>
+                </div>
+            `).join('');
+        }
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function toggleAnswerKeys() {
+            ['key-1', 'key-2', 'key-3'].forEach(id => {
+                document.getElementById(id).classList.toggle('hidden');
+            });
+        }
+
+        window.onclick = function(event) {
+            ['modal-teori', 'modal-instruksi', 'modal-lkpd'].forEach(id => {
+                const modal = document.getElementById(id);
+                if (event.target === modal) {
+                    closeModal(id);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
